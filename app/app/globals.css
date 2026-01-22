@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* RJSF Form Styling */
+.rjsf {
+  @apply space-y-4;
+}
+
+.rjsf .form-group {
+  @apply mb-4;
+}
+
+.rjsf label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+.rjsf input[type="text"],
+.rjsf input[type="email"],
+.rjsf input[type="password"],
+.rjsf input[type="number"],
+.rjsf input[type="date"],
+.rjsf textarea,
+.rjsf select {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+}
+
+.rjsf textarea {
+  @apply min-h-[100px];
+}
+
+.rjsf .field-description {
+  @apply text-sm text-gray-500 mt-1;
+}
+
+.rjsf .text-danger {
+  @apply text-red-600 text-sm mt-1;
+}
+
+.rjsf button[type="submit"] {
+  @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+/* Status badges */
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-todo {
+  @apply bg-gray-100 text-gray-800;
+}
+
+.badge-in-progress {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.badge-done {
+  @apply bg-green-100 text-green-800;
+}
+
+.badge-approved {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.badge-rejected {
+  @apply bg-red-100 text-red-800;
+}
