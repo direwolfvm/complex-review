@@ -10,9 +10,9 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Check if Supabase env vars are configured
-  // Middleware runs at build time, so these must be available as env vars
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Use runtime env vars for middleware
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.warn('Supabase not configured - skipping auth middleware');

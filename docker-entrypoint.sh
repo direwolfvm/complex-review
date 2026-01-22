@@ -6,9 +6,11 @@ echo "Starting complex-review container..."
 echo "NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-not set}"
 echo "NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:+is set}"
 
-# Export env vars so Node.js can access them
+# Export both NEXT_PUBLIC_ (for client) and regular (for server) versions
 export NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL}"
 export NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+export SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL}"
+export SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
 
 # Check if environment variables are set
 if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
