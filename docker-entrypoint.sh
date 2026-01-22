@@ -4,13 +4,18 @@ set -e
 
 echo "Starting complex-review container..."
 echo "NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-not set}"
+echo "NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:+is set}"
+
+# Export env vars so Node.js can access them
+export NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL}"
+export NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY}"
 
 # Check if environment variables are set
 if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
   echo "Warning: Supabase environment variables not set"
 fi
 
-# Create the config script
+# Create the config script for client-side code
 CONFIG_SCRIPT="window.__ENV__ = { NEXT_PUBLIC_SUPABASE_URL: '${NEXT_PUBLIC_SUPABASE_URL}', NEXT_PUBLIC_SUPABASE_ANON_KEY: '${NEXT_PUBLIC_SUPABASE_ANON_KEY}' };"
 
 # Find all HTML files and inject config before the first script tag
