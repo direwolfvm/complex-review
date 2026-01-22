@@ -1,5 +1,5 @@
 /**
- * Database types for the Permit Workflow application
+ * Database types for the Review Works application
  * Adapted to use the existing PIC schema
  */
 

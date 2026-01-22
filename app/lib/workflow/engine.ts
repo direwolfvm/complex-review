@@ -8,7 +8,7 @@
  * 4. Analyst Review Document (HedgeDoc/internal)
  * 5. Approval Gate
  *
- * Pattern reference: basic-permit-workflow initialization flow
+ * Pattern reference: Review Works initialization flow
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';

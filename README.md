@@ -1,4 +1,4 @@
-# Complex Review - Environmental Permit Workflow System
+# Review Works - Environmental Permit Workflow System
 
 A case and task management application built with Next.js, Supabase, and TypeScript implementing a 5-step environmental review workflow.
 
@@ -53,7 +53,7 @@ NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd complex-review
+cd review-works
 
 # Install dependencies
 npm install
@@ -272,14 +272,14 @@ docker build \
   --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
   --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
   --build-arg NEXT_PUBLIC_APP_BASE_URL=http://localhost:8080 \
-  -t complex-review .
+  -t review-works .
 
 # Run the container
 docker run -p 8080:8080 \
   -e NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
   -e NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
   -e SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
-  complex-review
+  review-works
 ```
 
 ## Google Cloud Run Deployment
@@ -316,14 +316,14 @@ Or deploy manually:
 cd app
 
 # Build and push to Google Container Registry
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/complex-review \
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/review-works \
   --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
   --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
   --build-arg NEXT_PUBLIC_APP_BASE_URL=https://your-service-url.run.app
 
 # Deploy to Cloud Run
-gcloud run deploy complex-review \
-  --image gcr.io/YOUR_PROJECT_ID/complex-review \
+gcloud run deploy review-works \
+  --image gcr.io/YOUR_PROJECT_ID/review-works \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \

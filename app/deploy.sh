@@ -20,7 +20,7 @@ set -e
 
 # Configuration (override with environment variables)
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project)}"
-SERVICE_NAME="${SERVICE_NAME:-complex-review}"
+SERVICE_NAME="${SERVICE_NAME:-review-works}"
 REGION="${REGION:-us-central1}"
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 

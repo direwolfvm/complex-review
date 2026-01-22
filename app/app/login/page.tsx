@@ -53,11 +53,17 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div>
-          <h1 className="text-center text-3xl font-bold text-gray-900">
-            Permit Workflow System
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <svg className="w-16 h-16" viewBox="0 0 32 32" fill="none">
+              <rect x="14" y="22" width="4" height="8" rx="1" fill="#854d0e"/>
+              <polygon points="16,2 24,12 20,12 26,20 6,20 12,12 8,12" fill="#22c55e"/>
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Review Works
           </h1>
-          <h2 className="mt-6 text-center text-xl text-gray-600">
+          <h2 className="mt-4 text-xl text-gray-600">
             {isSignUp ? 'Create your account' : 'Sign in to your account'}
           </h2>
         </div>

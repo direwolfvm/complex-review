@@ -70,8 +70,12 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
-              <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-                Permit Workflow
+              <Link href="/dashboard" className="flex items-center space-x-2 text-xl font-bold text-gray-900">
+                <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
+                  <rect x="14" y="22" width="4" height="8" rx="1" fill="#854d0e"/>
+                  <polygon points="16,2 24,12 20,12 26,20 6,20 12,12 8,12" fill="#22c55e"/>
+                </svg>
+                <span>Review Works</span>
               </Link>
               <nav className="hidden md:flex space-x-4">
                 <Link
