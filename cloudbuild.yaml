@@ -6,6 +6,7 @@ availableSecrets:
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
+    dir: 'app'
     secretEnv: ['NEXT_PUBLIC_SUPABASE_ANON_KEY']
     args:
       - 'build'
@@ -19,9 +20,7 @@ steps:
       - 'gcr.io/${PROJECT_ID}/${_SERVICE_NAME}:${SHORT_SHA}'
       - '-t'
       - 'gcr.io/${PROJECT_ID}/${_SERVICE_NAME}:latest'
-      - '-f'
-      - 'app/Dockerfile'
-      - './app'
+      - '.'
 
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
