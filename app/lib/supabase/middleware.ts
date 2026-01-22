@@ -10,6 +10,7 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Check if Supabase env vars are configured
+  // Middleware runs at build time, so these must be available as env vars
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
