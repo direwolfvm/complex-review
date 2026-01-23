@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { getRoleName } from '@/lib/workflow/engine';
 import type { CaseEvent, ProcessInstance, Project, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
 
 // Status badge component
@@ -87,6 +88,24 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-1">Welcome back! Here&apos;s what needs your attention.</p>
+          {roleIds.length > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-sm text-gray-500">Your roles:</span>
+              {roleIds.map((roleId) => (
+                <span
+                  key={roleId}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                >
+                  {getRoleName(roleId as number)}
+                </span>
+              ))}
+            </div>
+          )}
+          {roleIds.length === 0 && (
+            <p className="mt-2 text-sm text-yellow-600">
+              No roles assigned. Contact your administrator to get access to tasks.
+            </p>
+          )}
         </div>
         <Link
           href="/case/new"

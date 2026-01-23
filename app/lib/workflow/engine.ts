@@ -574,6 +574,93 @@ async function createNotification(
 }
 
 /**
+ * Get user's role IDs
+ */
+export async function getUserRoles(
+  supabase: SupabaseClient<any>,
+  userId: string
+): Promise<number[]> {
+  const { data: assignments } = await supabase
+    .from('user_assignments')
+    .select('user_role')
+    .eq('user_id', userId);
+
+  return assignments?.map(a => a.user_role).filter((r): r is number => r !== null) || [];
+}
+
+/**
+ * Check if user has a specific role
+ */
+export async function userHasRole(
+  supabase: SupabaseClient<any>,
+  userId: string,
+  roleId: number
+): Promise<boolean> {
+  const roles = await getUserRoles(supabase, userId);
+  return roles.includes(roleId);
+}
+
+/**
+ * Check if user can access a specific step
+ * Returns true if user has the required role for the step
+ */
+export async function canUserAccessStep(
+  supabase: SupabaseClient<any>,
+  userId: string,
+  stepNumber: number,
+  processInstanceId: number
+): Promise<{ canAccess: boolean; requiredRole: number | null; userRoles: number[] }> {
+  // Get the decision element for this step to find required role
+  const { data: decisionElement } = await supabase
+    .from('decision_element')
+    .select('responsible_role')
+    .eq('id', stepNumber)
+    .single();
+
+  const requiredRole = decisionElement?.responsible_role || null;
+  const userRoles = await getUserRoles(supabase, userId);
+
+  // If no required role is set, anyone can access
+  if (!requiredRole) {
+    return { canAccess: true, requiredRole: null, userRoles };
+  }
+
+  // Check if user has the required role
+  const canAccess = userRoles.includes(requiredRole);
+
+  // Also check if user is assigned to this specific task (for cases where task is assigned to specific user)
+  if (!canAccess) {
+    const { data: task } = await supabase
+      .from('case_event')
+      .select('assigned_entity, other')
+      .eq('parent_process_id', processInstanceId)
+      .eq('tier', stepNumber)
+      .eq('type', 'task')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (task?.assigned_entity === userId) {
+      return { canAccess: true, requiredRole, userRoles };
+    }
+  }
+
+  return { canAccess, requiredRole, userRoles };
+}
+
+/**
+ * Get role name by ID
+ */
+export function getRoleName(roleId: number): string {
+  const roleNames: Record<number, string> = {
+    1: 'Applicant',
+    2: 'Analyst',
+    3: 'Approver',
+  };
+  return roleNames[roleId] || `Role ${roleId}`;
+}
+
+/**
  * Get user's tasks
  */
 export async function getUserTasks(
