@@ -18,7 +18,51 @@ interface Step2FormProps {
   documents: Document[];
 }
 
+// These are auto-populated by Supabase or the system
+const HIDDEN_SYSTEM_FIELDS = [
+  'id',
+  'created_at',
+  'last_updated',
+  'retrieved_timestamp',
+  'parent_project_id',
+  'location_object',
+  'other',
+  'record_owner_agency',
+  'data_source_agency',
+  'data_source_system',
+  'data_record_version',
+];
+
+// Filter out hidden fields from a schema and ensure only title is required
+function filterSchema(schema: RJSFSchema): RJSFSchema {
+  if (!schema.properties) return schema;
+
+  const filteredProperties: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema.properties)) {
+    if (!HIDDEN_SYSTEM_FIELDS.includes(key)) {
+      filteredProperties[key] = value;
+    }
+  }
+
+  return {
+    ...schema,
+    properties: filteredProperties,
+    // Only require title - all other fields are optional
+    required: ['title'],
+  };
+}
+
+// Generate uiSchema to hide system fields
+function generateUiSchema(baseUiSchema: Record<string, unknown>): Record<string, unknown> {
+  const hiddenFields: Record<string, unknown> = {};
+  for (const field of HIDDEN_SYSTEM_FIELDS) {
+    hiddenFields[field] = { 'ui:widget': 'hidden' };
+  }
+  return { ...hiddenFields, ...baseUiSchema };
+}
+
 // Default form schema if decision element doesn't have one
+// Only title is required - all other fields are optional
 const defaultSchema: RJSFSchema = {
   type: 'object',
   required: ['title'],
@@ -26,6 +70,7 @@ const defaultSchema: RJSFSchema = {
     title: {
       type: 'string',
       title: 'Project Title',
+      minLength: 1,
     },
     description: {
       type: 'string',
@@ -34,7 +79,8 @@ const defaultSchema: RJSFSchema = {
     sector: {
       type: 'string',
       title: 'Sector',
-      enum: ['Energy', 'Transportation', 'Land Management', 'Water Resources', 'Other'],
+      enum: ['', 'Energy', 'Transportation', 'Land Management', 'Water Resources', 'Other'],
+      enumNames: ['Select a sector...', 'Energy', 'Transportation', 'Land Management', 'Water Resources', 'Other'],
     },
     lead_agency: {
       type: 'string',
@@ -65,18 +111,27 @@ export default function Step2Form({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get schema from decision element or use default
-  const formSchema = (decisionElement?.form_data as RJSFSchema) || defaultSchema;
-  const uiSchema = defaultUiSchema;
+  // Get schema from decision element or use default, filtering out hidden system fields
+  const rawSchema = (decisionElement?.form_data as RJSFSchema) || defaultSchema;
+  const formSchema = filterSchema(rawSchema);
+  const uiSchema = generateUiSchema(defaultUiSchema);
 
-  // Pre-fill form with existing project data
+  // Pre-fill form with existing project data, excluding hidden system fields
+  const projectData = project as unknown as Record<string, unknown>;
+  const filteredProjectData: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(projectData || {})) {
+    if (!HIDDEN_SYSTEM_FIELDS.includes(key)) {
+      filteredProjectData[key] = value;
+    }
+  }
+
   const initialFormData = {
     title: project.title || '',
     description: project.description || '',
     sector: project.sector || '',
     lead_agency: project.lead_agency || '',
     location_text: project.location_text || '',
-    ...((project as unknown as Record<string, unknown>) || {}),
+    ...filteredProjectData,
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,15 +143,15 @@ export default function Step2Form({
     try {
       const supabase = createClient();
 
-      // 1. Update project with form data
+      // 1. Update project with form data (convert empty strings to null for optional fields)
       const { error: projectError } = await supabase
         .from('project')
         .update({
           title: formData.title as string,
-          description: formData.description as string,
-          sector: formData.sector as string,
-          lead_agency: formData.lead_agency as string,
-          location_text: formData.location_text as string,
+          description: (formData.description as string) || null,
+          sector: (formData.sector as string) || null,
+          lead_agency: (formData.lead_agency as string) || null,
+          location_text: (formData.location_text as string) || null,
           current_status: 'underway',
         })
         .eq('id', project.id);

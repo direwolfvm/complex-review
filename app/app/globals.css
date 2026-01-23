@@ -7,12 +7,13 @@
   --foreground: #171717;
 }
 
-@media (prefers-color-scheme: dark) {
+/* Disable dark mode - keep light theme for form readability */
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
-}
+} */
 
 body {
   color: var(--foreground);
@@ -40,7 +41,19 @@ body {
 .rjsf input[type="date"],
 .rjsf textarea,
 .rjsf select {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white;
+}
+
+/* Ensure all form inputs have readable dark text */
+input,
+textarea,
+select {
+  @apply text-gray-900 bg-white;
+}
+
+input::placeholder,
+textarea::placeholder {
+  @apply text-gray-400;
 }
 
 .rjsf textarea {
