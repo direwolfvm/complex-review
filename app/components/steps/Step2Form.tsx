@@ -33,6 +33,49 @@ const HIDDEN_SYSTEM_FIELDS = [
   'data_record_version',
 ];
 
+// Make a property type nullable (allows null/empty values)
+function makeNullable(prop: unknown): unknown {
+  if (typeof prop !== 'object' || prop === null) return prop;
+
+  const propObj = prop as Record<string, unknown>;
+  const propType = propObj.type;
+
+  // If it already allows null or has no type, return as-is
+  if (!propType || (Array.isArray(propType) && propType.includes('null'))) {
+    return prop;
+  }
+
+  // Create a copy to modify
+  const result = { ...propObj };
+
+  // Convert single type to array with null
+  if (typeof propType === 'string') {
+    result.type = [propType, 'null'];
+  } else if (Array.isArray(propType)) {
+    // Add null to existing array of types
+    result.type = [...propType, 'null'];
+  }
+
+  // For object types, also make nested properties nullable
+  if (propType === 'object' && propObj.properties) {
+    const nestedProps = propObj.properties as Record<string, unknown>;
+    const nullableNestedProps: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(nestedProps)) {
+      nullableNestedProps[key] = makeNullable(value);
+    }
+    result.properties = nullableNestedProps;
+    // Remove required from nested objects
+    delete result.required;
+  }
+
+  // For array types, make items nullable too
+  if (propType === 'array' && propObj.items) {
+    result.items = makeNullable(propObj.items);
+  }
+
+  return result;
+}
+
 // Filter out hidden fields from a schema and ensure only title is required
 function filterSchema(schema: RJSFSchema): RJSFSchema {
   if (!schema.properties) return schema;
@@ -40,7 +83,12 @@ function filterSchema(schema: RJSFSchema): RJSFSchema {
   const filteredProperties: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(schema.properties)) {
     if (!HIDDEN_SYSTEM_FIELDS.includes(key)) {
-      filteredProperties[key] = value;
+      // Make all fields except 'title' nullable
+      if (key === 'title') {
+        filteredProperties[key] = value;
+      } else {
+        filteredProperties[key] = makeNullable(value);
+      }
     }
   }
 
@@ -62,7 +110,7 @@ function generateUiSchema(baseUiSchema: Record<string, unknown>): Record<string,
 }
 
 // Default form schema if decision element doesn't have one
-// Only title is required - all other fields are optional
+// Only title is required - all other fields are optional (nullable)
 const defaultSchema: RJSFSchema = {
   type: 'object',
   required: ['title'],
@@ -73,21 +121,20 @@ const defaultSchema: RJSFSchema = {
       minLength: 1,
     },
     description: {
-      type: 'string',
+      type: ['string', 'null'],
       title: 'Description',
     },
     sector: {
-      type: 'string',
+      type: ['string', 'null'],
       title: 'Sector',
-      enum: ['', 'Energy', 'Transportation', 'Land Management', 'Water Resources', 'Other'],
-      enumNames: ['Select a sector...', 'Energy', 'Transportation', 'Land Management', 'Water Resources', 'Other'],
+      enum: ['', 'Energy', 'Transportation', 'Land Management', 'Water Resources', 'Other', null],
     },
     lead_agency: {
-      type: 'string',
+      type: ['string', 'null'],
       title: 'Lead Agency',
     },
     location_text: {
-      type: 'string',
+      type: ['string', 'null'],
       title: 'Location',
     },
   },
