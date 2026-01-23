@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -17,54 +17,122 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, user }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [notifications, setNotifications] = useState<CaseEvent[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [clientError, setClientError] = useState(false);
 
   useEffect(() => {
     loadNotifications();
   }, []);
 
   const loadNotifications = async () => {
-    const { data } = await supabase
-      .from('case_event')
-      .select('*')
-      .eq('type', 'notification')
-      .eq('assigned_entity', user.id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(10);
+    try {
+      // Check if client is properly initialized (has 'from' method)
+      if (!supabase?.from) {
+        setClientError(true);
+        return;
+      }
 
-    setNotifications(data || []);
+      const { data, error } = await supabase
+        .from('case_event')
+        .select('*')
+        .eq('type', 'notification')
+        .eq('assigned_entity', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error loading notifications:', error);
+        return;
+      }
+
+      setNotifications(data || []);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+      setClientError(true);
+    }
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      if (supabase?.auth?.signOut) {
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
     router.push('/login');
     router.refresh();
   };
 
   const markAsRead = async (notificationId: number) => {
-    const notification = notifications.find(n => n.id === notificationId);
-    await supabase
-      .from('case_event')
-      .update({
-        status: 'completed',
-        other: {
-          ...(notification?.other as Record<string, unknown> || {}),
-          read: true,
-          read_at: new Date().toISOString(),
-        },
-      })
-      .eq('id', notificationId);
+    try {
+      if (!supabase?.from) return;
 
-    setNotifications(notifications.filter(n => n.id !== notificationId));
+      const notification = notifications.find(n => n.id === notificationId);
+      await supabase
+        .from('case_event')
+        .update({
+          status: 'completed',
+          other: {
+            ...(notification?.other as Record<string, unknown> || {}),
+            read: true,
+            read_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', notificationId);
+
+      setNotifications(notifications.filter(n => n.id !== notificationId));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const handleClearCache = () => {
+    // Clear all caches and reload
+    const reloadUrl = '/login?_cache_cleared=' + Date.now();
+
+    const doReload = () => {
+      globalThis.location.href = reloadUrl;
+    };
+
+    if (typeof caches !== 'undefined') {
+      caches.keys().then(names => {
+        Promise.all(names.map(name => caches.delete(name))).then(doReload);
+      });
+    } else {
+      doReload();
+    }
   };
 
   const unreadCount = notifications.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Cache Error Banner */}
+      {clientError && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="text-sm text-yellow-800">
+                There may be a connection issue. If you experience problems, please clear your browser cache.
+              </span>
+            </div>
+            <button
+              onClick={handleClearCache}
+              className="ml-4 px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded hover:bg-yellow-200"
+            >
+              Clear Cache & Reload
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
