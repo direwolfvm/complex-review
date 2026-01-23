@@ -608,7 +608,11 @@ export async function userHasRole(
 
 /**
  * Check if user can access a specific step
- * Returns true if user has the required role for the step
+ *
+ * Access rules:
+ * - Steps 1, 2, 3 (Applicant): Only the case creator can access
+ * - Step 4 (Analyst): Any user with Analyst role, EXCEPT the case creator
+ * - Step 5 (Approver): Any user with Approver role, EXCEPT the case creator
  */
 export async function canUserAccessStep(
   supabase: SupabaseClient<any>,
@@ -631,26 +635,35 @@ export async function canUserAccessStep(
     return { canAccess: true, requiredRole: null, userRoles };
   }
 
-  // Check if user has the required role
-  const canAccess = userRoles.includes(requiredRole);
+  // Get process instance to find the case creator (applicant)
+  const { data: processInstance } = await supabase
+    .from('process_instance')
+    .select('project:parent_project_id(*)')
+    .eq('id', processInstanceId)
+    .single();
 
-  // Also check if user is assigned to this specific task (for cases where task is assigned to specific user)
-  if (!canAccess) {
-    const { data: task } = await supabase
-      .from('case_event')
-      .select('assigned_entity, other')
-      .eq('parent_process_id', processInstanceId)
-      .eq('tier', stepNumber)
-      .eq('type', 'task')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+  const project = processInstance?.project as unknown as Project;
+  const projectMeta = (project?.other as ProjectWorkflowMeta) || {};
+  const applicantId = projectMeta.applicant_user_id;
 
-    if (task?.assigned_entity === userId) {
-      return { canAccess: true, requiredRole, userRoles };
-    }
+  // For Applicant steps (1, 2, 3): Only the case creator can access
+  if (requiredRole === 1) {
+    const canAccess = userId === applicantId;
+    return { canAccess, requiredRole, userRoles };
   }
 
+  // For Analyst step (4) and Approver step (5):
+  // Any user with the required role can access, EXCEPT the case creator
+  // This prevents someone from reviewing their own case
+  if (requiredRole === 2 || requiredRole === 3) {
+    const hasRole = userRoles.includes(requiredRole);
+    const isCaseCreator = userId === applicantId;
+    const canAccess = hasRole && !isCaseCreator;
+    return { canAccess, requiredRole, userRoles };
+  }
+
+  // Default: check role only
+  const canAccess = userRoles.includes(requiredRole);
   return { canAccess, requiredRole, userRoles };
 }
 
