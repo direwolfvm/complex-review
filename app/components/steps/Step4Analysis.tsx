@@ -157,19 +157,25 @@ export default function Step4Analysis({
         })
         .eq('id', processInstance.id);
 
-      // 5. Find an approver to assign
+      // 5. Find an approver to assign (exclude applicant and analyst - can't approve your own work)
       const projectMeta = (project.other as ProjectWorkflowMeta) || {};
+      const applicantId = projectMeta.applicant_user_id;
+      const analystId = projectMeta.analyst_user_id;
       let approverId = projectMeta.approver_user_id;
 
       if (!approverId) {
-        const { data: approverAssignment } = await supabase
+        // Find an approver who is NOT the applicant or analyst
+        const { data: approverAssignments } = await supabase
           .from('user_assignments')
           .select('user_id')
-          .eq('user_role', 3) // Approver role
-          .limit(1)
-          .single();
+          .eq('user_role', 3); // Approver role
 
-        approverId = approverAssignment?.user_id || '';
+        // Filter out the applicant and analyst
+        const availableApprovers = (approverAssignments || []).filter(
+          (a: { user_id: string | null }) => a.user_id !== applicantId && a.user_id !== analystId
+        );
+
+        approverId = availableApprovers[0]?.user_id || '';
 
         // Update project with approver
         if (approverId) {

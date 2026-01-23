@@ -138,19 +138,24 @@ export default function Step3Document({
         })
         .eq('id', processInstance.id);
 
-      // 5. Find an analyst to assign (or leave unassigned)
+      // 5. Find an analyst to assign (exclude the applicant - can't review your own case)
       const projectMeta = (project.other as ProjectWorkflowMeta) || {};
+      const applicantId = projectMeta.applicant_user_id;
       let analystId = projectMeta.analyst_user_id;
 
       if (!analystId) {
-        const { data: analystAssignment } = await supabase
+        // Find an analyst who is NOT the applicant
+        const { data: analystAssignments } = await supabase
           .from('user_assignments')
           .select('user_id')
-          .eq('user_role', 2) // Analyst role
-          .limit(1)
-          .single();
+          .eq('user_role', 2); // Analyst role
 
-        analystId = analystAssignment?.user_id || '';
+        // Filter out the applicant
+        const availableAnalysts = (analystAssignments || []).filter(
+          (a: { user_id: string | null }) => a.user_id !== applicantId
+        );
+
+        analystId = availableAnalysts[0]?.user_id || '';
 
         // Update project with analyst
         if (analystId) {

@@ -251,13 +251,15 @@ export async function advanceToStep(
   // Determine assigned user based on role
   let assignedUserId = initiatingUserId;
   const roleId = decisionElement.responsible_role;
+  const applicantId = projectMeta.applicant_user_id || '';
 
   if (roleId === 2) {
-    // Analyst - use assigned analyst or find one
-    assignedUserId = projectMeta.analyst_user_id || await findUserWithRole(supabase, 2);
+    // Analyst - use assigned analyst or find one (exclude applicant)
+    assignedUserId = projectMeta.analyst_user_id || await findUserWithRole(supabase, 2, [applicantId]);
   } else if (roleId === 3) {
-    // Approver - use assigned approver or find one
-    assignedUserId = projectMeta.approver_user_id || await findUserWithRole(supabase, 3);
+    // Approver - use assigned approver or find one (exclude applicant and analyst)
+    const analystId = projectMeta.analyst_user_id || '';
+    assignedUserId = projectMeta.approver_user_id || await findUserWithRole(supabase, 3, [applicantId, analystId]);
   }
 
   // Update process instance stage
@@ -466,16 +468,20 @@ function getTaskType(stepNumber: number): 'form' | 'document' | 'approval' {
 
 async function findUserWithRole(
   supabase: SupabaseClient<any>,
-  roleId: number
+  roleId: number,
+  excludeUserIds: string[] = []
 ): Promise<string> {
   const { data } = await supabase
     .from('user_assignments')
     .select('user_id')
-    .eq('user_role', roleId)
-    .limit(1)
-    .single();
+    .eq('user_role', roleId);
 
-  return data?.user_id || '';
+  // Filter out excluded users (e.g., applicant can't be their own reviewer)
+  const availableUsers = (data || []).filter(
+    d => d.user_id && !excludeUserIds.includes(d.user_id)
+  );
+
+  return availableUsers[0]?.user_id || '';
 }
 
 async function createDocumentForStep(
