@@ -8,6 +8,3 @@ applications:
   health-check-type: http
   health-check-http-endpoint: /
   health-check-invocation-timeout: 5
-  env:
-    NEXT_PUBLIC_SUPABASE_URL: https://erbzeaejjomjqmbhclpj.supabase.co
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_aqb_2BISMWJhS0b9Tw9wzA_vHqLGZuw
