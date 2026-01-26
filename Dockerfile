@@ -26,14 +26,7 @@ COPY app/ .
 # Next.js collects anonymous telemetry data - disable it
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build arguments for environment variables needed at build time
-# These are baked into the client-side bundle
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-
+# Build without credentials - they will be injected at runtime
 RUN npm run build
 
 # ============================================
