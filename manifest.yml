@@ -1,6 +1,6 @@
 ---
 applications:
-- name: complex-review
+- name: reviewworks
   docker:
     image: direwolfvm/complex-review:latest
   memory: 512M
