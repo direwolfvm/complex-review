@@ -17,8 +17,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read from server environment at runtime
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__ENV__ = { NEXT_PUBLIC_SUPABASE_URL: '${supabaseUrl}', NEXT_PUBLIC_SUPABASE_ANON_KEY: '${supabaseKey}' };`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-gray-50">
         {children}
       </body>
