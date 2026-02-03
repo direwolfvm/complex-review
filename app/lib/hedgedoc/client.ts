@@ -74,15 +74,32 @@ export async function createNote(
       return null;
     }
 
-    // HedgeDoc returns the URL of the new note
-    const noteUrl = response.url || response.headers.get('location');
+    // HedgeDoc should return the URL of the new note (Location header or final URL)
+    const noteUrl = response.headers.get('location') || response.url;
     if (!noteUrl) {
       console.error('HedgeDoc did not return note URL');
       return null;
     }
 
+    // Guard against non-note redirects (e.g., /new or auth pages)
+    const lowerUrl = noteUrl.toLowerCase();
+    if (
+      lowerUrl.endsWith('/new') ||
+      lowerUrl.includes('/login') ||
+      lowerUrl.includes('/signin') ||
+      lowerUrl.includes('/auth')
+    ) {
+      console.error('HedgeDoc did not return a note URL:', noteUrl);
+      return null;
+    }
+
     // Extract note ID from URL (last path segment)
-    const noteId = noteUrl.split('/').pop() || '';
+    const parsedUrl = new URL(noteUrl, config.baseUrl);
+    const noteId = parsedUrl.pathname.split('/').pop() || '';
+    if (!noteId || noteId === 'new') {
+      console.error('HedgeDoc note ID missing from URL:', noteUrl);
+      return null;
+    }
 
     return {
       noteId,
