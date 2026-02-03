@@ -10,6 +10,10 @@ const nextConfig = {
         source: '/(.*)',
         headers: [
           {
+            key: 'Content-Security-Policy',
+            value: "frame-src 'self' https://hedgedoc-wiz2ttea4a-uk.a.run.app",
+          },
+          {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',
           },

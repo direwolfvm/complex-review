@@ -14,6 +14,7 @@ interface Step4AnalysisProps {
   userId: string;
   task: CaseEvent | null;
   documents: Document[];
+  hedgedocBaseUrl?: string | null;
 }
 
 export default function Step4Analysis({
@@ -24,6 +25,7 @@ export default function Step4Analysis({
   userId,
   task,
   documents,
+  hedgedocBaseUrl = null,
 }: Step4AnalysisProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -33,6 +35,8 @@ export default function Step4Analysis({
   const [analysisDoc, setAnalysisDoc] = useState<Document | null>(null);
   const [draftDoc, setDraftDoc] = useState<Document | null>(null);
   const [showDraft, setShowDraft] = useState(true);
+  const [analysisHedgeDocId, setAnalysisHedgeDocId] = useState<string | null>(null);
+  const [draftHedgeDocId, setDraftHedgeDocId] = useState<string | null>(null);
 
   // Check for revision request
   const taskMeta = (task?.other as CaseEventWorkflowMeta) || {};
@@ -55,15 +59,88 @@ export default function Step4Analysis({
       setAnalysisDoc(analysis);
       const meta = analysis.other as DocumentWorkflowMeta;
       setContent(meta?.markdown_content || '');
+      setAnalysisHedgeDocId(meta?.hedgedoc_note_id || null);
     }
 
     if (draft) {
       setDraftDoc(draft);
+      const meta = draft.other as DocumentWorkflowMeta;
+      setDraftHedgeDocId(meta?.hedgedoc_note_id || null);
     }
   }, [documents]);
 
+  const ensureHedgeDocNote = async (doc: Document, defaultTitle: string): Promise<{ noteId: string; url: string } | null> => {
+    if (!hedgedocBaseUrl) return null;
+
+    const meta = (doc.other as DocumentWorkflowMeta) || {};
+    if (meta.hedgedoc_note_id && meta.hedgedoc_url) {
+      return { noteId: meta.hedgedoc_note_id, url: meta.hedgedoc_url };
+    }
+
+    const response = await fetch('/api/hedgedoc/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: doc.title || defaultTitle,
+        initialContent: meta.markdown_content || '',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create HedgeDoc note');
+    }
+
+    const data = (await response.json()) as { noteId: string; url: string };
+
+    await createClient()
+      .from('document')
+      .update({
+        other: {
+          ...meta,
+          hedgedoc_note_id: data.noteId,
+          hedgedoc_url: data.url,
+        },
+      })
+      .eq('id', doc.id);
+
+    return data;
+  };
+
+  useEffect(() => {
+    if (!hedgedocBaseUrl) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (analysisDoc) {
+          const analysisResult = await ensureHedgeDocNote(analysisDoc, 'Environmental Analysis');
+          if (!cancelled && analysisResult) {
+            setAnalysisHedgeDocId(analysisResult.noteId);
+          }
+        }
+
+        if (draftDoc) {
+          const draftResult = await ensureHedgeDocNote(draftDoc, 'Applicant Draft Document');
+          if (!cancelled && draftResult) {
+            setDraftHedgeDocId(draftResult.noteId);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to initialize HedgeDoc');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hedgedocBaseUrl, analysisDoc, draftDoc]);
+
   const handleSave = async () => {
     if (!analysisDoc) return;
+    if (hedgedocBaseUrl) return;
     setSaving(true);
 
     try {
@@ -96,6 +173,18 @@ export default function Step4Analysis({
     try {
       const supabase = createClient();
 
+      // Ensure HedgeDoc notes exist when embedded editor is enabled
+      if (hedgedocBaseUrl) {
+        if (analysisDoc) {
+          const result = await ensureHedgeDocNote(analysisDoc, 'Environmental Analysis');
+          if (result) setAnalysisHedgeDocId(result.noteId);
+        }
+        if (draftDoc) {
+          const result = await ensureHedgeDocNote(draftDoc, 'Applicant Draft Document');
+          if (result) setDraftHedgeDocId(result.noteId);
+        }
+      }
+
       // 1. Save document content
       if (analysisDoc) {
         const docMeta = (analysisDoc.other as DocumentWorkflowMeta) || {};
@@ -105,7 +194,7 @@ export default function Step4Analysis({
             status: 'submitted',
             other: {
               ...docMeta,
-              markdown_content: content,
+              markdown_content: hedgedocBaseUrl ? docMeta.markdown_content : content,
               last_edited_by_user_id: userId,
             },
           })
@@ -314,23 +403,55 @@ export default function Step4Analysis({
               {showDraft && draftDoc && (
                 <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Applicant Draft Document</h3>
-                  <div className="prose prose-sm max-w-none overflow-y-auto max-h-[600px] bg-white p-4 rounded border">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
-                      {draftMeta?.markdown_content || 'No content'}
-                    </pre>
-                  </div>
+                  {hedgedocBaseUrl ? (
+                    <div className="border border-gray-300 rounded-lg overflow-hidden bg-white">
+                      {!draftHedgeDocId ? (
+                        <div className="p-4 text-sm text-gray-600">Loading HedgeDoc document...</div>
+                      ) : (
+                        <iframe
+                          title="Applicant Draft"
+                          src={`${hedgedocBaseUrl}/${draftHedgeDocId}`}
+                          className="w-full min-h-[600px]"
+                          allow="clipboard-read; clipboard-write; fullscreen"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm max-w-none overflow-y-auto max-h-[600px] bg-white p-4 rounded border">
+                      <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
+                        {draftMeta?.markdown_content || 'No content'}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Analysis editor */}
               <div className={showDraft ? '' : 'col-span-full'}>
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Your Analysis</h3>
-                <MarkdownEditor
-                  value={content}
-                  onChange={setContent}
-                  disabled={!isCurrentStep}
-                  placeholder="Write your environmental analysis..."
-                />
+                {hedgedocBaseUrl ? (
+                  <div className="border border-gray-300 rounded-lg overflow-hidden">
+                    {!analysisHedgeDocId ? (
+                      <div className="p-4 text-sm text-gray-600">Loading HedgeDoc editor...</div>
+                    ) : (
+                      <iframe
+                        title="HedgeDoc Analysis Editor"
+                        src={`${hedgedocBaseUrl}/${analysisHedgeDocId}`}
+                        className="w-full min-h-[600px]"
+                        allow="clipboard-read; clipboard-write; fullscreen"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <MarkdownEditor
+                    value={content}
+                    onChange={setContent}
+                    disabled={!isCurrentStep}
+                    placeholder="Write your environmental analysis..."
+                  />
+                )}
               </div>
             </div>
 
@@ -338,10 +459,10 @@ export default function Step4Analysis({
             <div className="mt-6 flex justify-between items-center">
               <button
                 onClick={handleSave}
-                disabled={saving || !isCurrentStep}
+                disabled={saving || !isCurrentStep || !!hedgedocBaseUrl}
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Save Draft'}
+                {hedgedocBaseUrl ? 'Auto-saved in HedgeDoc' : saving ? 'Saving...' : 'Save Draft'}
               </button>
 
               <div className="flex space-x-4">
@@ -353,7 +474,7 @@ export default function Step4Analysis({
                 </button>
                 <button
                   onClick={handleComplete}
-                  disabled={loading || !isCurrentStep || !content.trim()}
+                  disabled={loading || !isCurrentStep || (!hedgedocBaseUrl && !content.trim())}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? 'Submitting...' : 'Submit for Approval'}

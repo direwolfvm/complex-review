@@ -121,6 +121,7 @@ export default async function StepPage({
     .select('*')
     .eq('parent_process_id', parseInt(processId));
 
+  const hedgedocBaseUrl = process.env.HEDGEDOC_BASE_URL || null;
   // Common props for all step components
   const commonProps = {
     processInstance,
@@ -130,6 +131,7 @@ export default async function StepPage({
     userId: user.id,
     task: existingTask,
     documents: documents || [],
+    hedgedocBaseUrl,
   };
 
   // Render appropriate step component

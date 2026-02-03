@@ -16,6 +16,7 @@ interface Step2FormProps {
   userId: string;
   task: CaseEvent | null;
   documents: Document[];
+  hedgedocBaseUrl?: string | null;
 }
 
 // These are auto-populated by Supabase or the system
@@ -153,6 +154,7 @@ export default function Step2Form({
   currentStep,
   userId,
   task,
+  hedgedocBaseUrl = null,
 }: Step2FormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -295,6 +297,42 @@ ${formData.description || '[Describe the project in detail]'}
         prepared_by: userId,
         other: docMeta as unknown as Record<string, unknown>,
       });
+
+      if (hedgedocBaseUrl) {
+        const { data: latestDoc } = await supabase
+          .from('document')
+          .select('*')
+          .eq('parent_process_id', processInstance.id)
+          .eq('document_type', 'draft')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (latestDoc) {
+          const response = await fetch('/api/hedgedoc/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: latestDoc.title || 'Applicant Draft Document',
+              initialContent: docMeta.markdown_content || '',
+            }),
+          });
+
+          if (response.ok) {
+            const data = (await response.json()) as { noteId: string; url: string };
+            await supabase
+              .from('document')
+              .update({
+                other: {
+                  ...docMeta,
+                  hedgedoc_note_id: data.noteId,
+                  hedgedoc_url: data.url,
+                },
+              })
+              .eq('id', latestDoc.id);
+          }
+        }
+      }
 
       // Navigate to step 3
       router.push(`/step/3/${processInstance.id}`);

@@ -14,6 +14,7 @@ interface Step3DocumentProps {
   userId: string;
   task: CaseEvent | null;
   documents: Document[];
+  hedgedocBaseUrl?: string | null;
 }
 
 export default function Step3Document({
@@ -24,6 +25,7 @@ export default function Step3Document({
   userId,
   task,
   documents,
+  hedgedocBaseUrl = null,
 }: Step3DocumentProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -31,6 +33,7 @@ export default function Step3Document({
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState('');
   const [document, setDocument] = useState<Document | null>(null);
+  const [hedgedocNoteId, setHedgedocNoteId] = useState<string | null>(null);
 
   // Find draft document
   useEffect(() => {
@@ -43,11 +46,73 @@ export default function Step3Document({
       setDocument(draftDoc);
       const meta = draftDoc.other as DocumentWorkflowMeta;
       setContent(meta?.markdown_content || '');
+      setHedgedocNoteId(meta?.hedgedoc_note_id || null);
     }
   }, [documents]);
 
+  const ensureHedgeDocNote = async (doc: Document): Promise<{ noteId: string; url: string } | null> => {
+    if (!hedgedocBaseUrl) return null;
+
+    const meta = (doc.other as DocumentWorkflowMeta) || {};
+    if (meta.hedgedoc_note_id && meta.hedgedoc_url) {
+      return { noteId: meta.hedgedoc_note_id, url: meta.hedgedoc_url };
+    }
+
+    const response = await fetch('/api/hedgedoc/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: doc.title || 'Applicant Draft Document',
+        initialContent: meta.markdown_content || '',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create HedgeDoc note');
+    }
+
+    const data = (await response.json()) as { noteId: string; url: string };
+
+    await createClient()
+      .from('document')
+      .update({
+        other: {
+          ...meta,
+          hedgedoc_note_id: data.noteId,
+          hedgedoc_url: data.url,
+        },
+      })
+      .eq('id', doc.id);
+
+    return data;
+  };
+
+  useEffect(() => {
+    if (!hedgedocBaseUrl || !document) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await ensureHedgeDocNote(document);
+        if (!cancelled && result) {
+          setHedgedocNoteId(result.noteId);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to initialize HedgeDoc');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hedgedocBaseUrl, document]);
+
   const handleSave = async () => {
     if (!document) return;
+    if (hedgedocBaseUrl) return;
     setSaving(true);
 
     try {
@@ -80,6 +145,14 @@ export default function Step3Document({
     try {
       const supabase = createClient();
 
+      // Ensure HedgeDoc note exists when embedded editor is enabled
+      if (hedgedocBaseUrl && document) {
+        const result = await ensureHedgeDocNote(document);
+        if (result) {
+          setHedgedocNoteId(result.noteId);
+        }
+      }
+
       // 1. Save document content
       if (document) {
         const docMeta = (document.other as DocumentWorkflowMeta) || {};
@@ -89,7 +162,7 @@ export default function Step3Document({
             status: 'submitted',
             other: {
               ...docMeta,
-              markdown_content: content,
+              markdown_content: hedgedocBaseUrl ? docMeta.markdown_content : content,
               last_edited_by_user_id: userId,
             },
           })
@@ -295,22 +368,38 @@ export default function Step3Document({
           <>
             {/* Editor */}
             <div className="mb-6">
-              <MarkdownEditor
-                value={content}
-                onChange={setContent}
-                disabled={!isCurrentStep}
-                placeholder="Write your project analysis document..."
-              />
+              {hedgedocBaseUrl ? (
+                <div className="border border-gray-300 rounded-lg overflow-hidden">
+                  {!hedgedocNoteId ? (
+                    <div className="p-4 text-sm text-gray-600">Loading HedgeDoc editor...</div>
+                  ) : (
+                    <iframe
+                      title="HedgeDoc Editor"
+                      src={`${hedgedocBaseUrl}/${hedgedocNoteId}`}
+                      className="w-full min-h-[600px]"
+                      allow="clipboard-read; clipboard-write; fullscreen"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  )}
+                </div>
+              ) : (
+                <MarkdownEditor
+                  value={content}
+                  onChange={setContent}
+                  disabled={!isCurrentStep}
+                  placeholder="Write your project analysis document..."
+                />
+              )}
             </div>
 
             {/* Actions */}
             <div className="flex justify-between items-center">
               <button
                 onClick={handleSave}
-                disabled={saving || !isCurrentStep}
+                disabled={saving || !isCurrentStep || !!hedgedocBaseUrl}
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Save Draft'}
+                {hedgedocBaseUrl ? 'Auto-saved in HedgeDoc' : saving ? 'Saving...' : 'Save Draft'}
               </button>
 
               <div className="flex space-x-4">
@@ -322,7 +411,7 @@ export default function Step3Document({
                 </button>
                 <button
                   onClick={handleComplete}
-                  disabled={loading || !isCurrentStep || !content.trim()}
+                  disabled={loading || !isCurrentStep || (!hedgedocBaseUrl && !content.trim())}
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading ? 'Submitting...' : 'Submit and Continue'}
