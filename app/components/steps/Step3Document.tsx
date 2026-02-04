@@ -34,6 +34,7 @@ export default function Step3Document({
   const [content, setContent] = useState('');
   const [document, setDocument] = useState<Document | null>(null);
   const [hedgedocNoteId, setHedgedocNoteId] = useState<string | null>(null);
+  const hedgedocOrigin = hedgedocBaseUrl?.replace(/\/$/, '') || null;
 
   // Find draft document
   useEffect(() => {
@@ -99,8 +100,11 @@ export default function Step3Document({
           setHedgedocNoteId(result.noteId);
         }
       } catch (err) {
+        // In anonymous HedgeDoc mode, note pre-creation can fail.
+        // Fall back to `/new` embed instead of blocking the step.
+        console.warn('HedgeDoc pre-create failed, falling back to /new', err);
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize HedgeDoc');
+          setHedgedocNoteId(null);
         }
       }
     })();
@@ -370,17 +374,15 @@ export default function Step3Document({
             <div className="mb-6">
               {hedgedocBaseUrl ? (
                 <div className="border border-gray-300 rounded-lg overflow-hidden">
-                  {!hedgedocNoteId ? (
-                    <div className="p-4 text-sm text-gray-600">Loading HedgeDoc editor...</div>
-                  ) : (
-                    <iframe
-                      title="HedgeDoc Editor"
-                      src={`${hedgedocBaseUrl}/${hedgedocNoteId}`}
-                      className="w-full min-h-[600px]"
-                      allow="clipboard-read; clipboard-write; fullscreen"
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                  )}
+                  <iframe
+                    title="HedgeDoc Editor"
+                    src={hedgedocNoteId && hedgedocOrigin
+                      ? `${hedgedocOrigin}/${hedgedocNoteId}`
+                      : `${hedgedocOrigin}/new`}
+                    className="w-full min-h-[600px]"
+                    allow="clipboard-read; clipboard-write; fullscreen"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 </div>
               ) : (
                 <MarkdownEditor

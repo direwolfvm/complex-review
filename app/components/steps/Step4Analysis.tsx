@@ -37,6 +37,7 @@ export default function Step4Analysis({
   const [showDraft, setShowDraft] = useState(true);
   const [analysisHedgeDocId, setAnalysisHedgeDocId] = useState<string | null>(null);
   const [draftHedgeDocId, setDraftHedgeDocId] = useState<string | null>(null);
+  const hedgedocOrigin = hedgedocBaseUrl?.replace(/\/$/, '') || null;
 
   // Check for revision request
   const taskMeta = (task?.other as CaseEventWorkflowMeta) || {};
@@ -127,8 +128,11 @@ export default function Step4Analysis({
           }
         }
       } catch (err) {
+        // In anonymous HedgeDoc mode, note pre-creation can fail.
+        // Fall back to `/new` embed for editor and markdown fallback for draft preview.
+        console.warn('HedgeDoc pre-create failed, falling back to /new', err);
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize HedgeDoc');
+          setAnalysisHedgeDocId(null);
         }
       }
     })();
@@ -406,11 +410,13 @@ export default function Step4Analysis({
                   {hedgedocBaseUrl ? (
                     <div className="border border-gray-300 rounded-lg overflow-hidden bg-white">
                       {!draftHedgeDocId ? (
-                        <div className="p-4 text-sm text-gray-600">Loading HedgeDoc document...</div>
+                        <div className="p-4 text-sm text-gray-600">
+                          Draft note is not linked yet. It will appear here once a HedgeDoc note ID is saved.
+                        </div>
                       ) : (
                         <iframe
                           title="Applicant Draft"
-                          src={`${hedgedocBaseUrl}/${draftHedgeDocId}`}
+                          src={`${hedgedocOrigin}/${draftHedgeDocId}`}
                           className="w-full min-h-[600px]"
                           allow="clipboard-read; clipboard-write; fullscreen"
                           referrerPolicy="no-referrer-when-downgrade"
@@ -432,17 +438,15 @@ export default function Step4Analysis({
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Your Analysis</h3>
                 {hedgedocBaseUrl ? (
                   <div className="border border-gray-300 rounded-lg overflow-hidden">
-                    {!analysisHedgeDocId ? (
-                      <div className="p-4 text-sm text-gray-600">Loading HedgeDoc editor...</div>
-                    ) : (
-                      <iframe
-                        title="HedgeDoc Analysis Editor"
-                        src={`${hedgedocBaseUrl}/${analysisHedgeDocId}`}
-                        className="w-full min-h-[600px]"
-                        allow="clipboard-read; clipboard-write; fullscreen"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
-                    )}
+                    <iframe
+                      title="HedgeDoc Analysis Editor"
+                      src={analysisHedgeDocId && hedgedocOrigin
+                        ? `${hedgedocOrigin}/${analysisHedgeDocId}`
+                        : `${hedgedocOrigin}/new`}
+                      className="w-full min-h-[600px]"
+                      allow="clipboard-read; clipboard-write; fullscreen"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
                   </div>
                 ) : (
                   <MarkdownEditor
