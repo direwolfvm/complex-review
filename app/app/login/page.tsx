@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,11 +12,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectToParam = searchParams.get('redirectTo');
-  const redirectTo = redirectToParam && redirectToParam.startsWith('/') && !redirectToParam.startsWith('//')
-    ? redirectToParam
-    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +40,10 @@ export default function LoginPage() {
         });
 
         if (error) throw error;
+        const redirectToParam = new URLSearchParams(window.location.search).get('redirectTo');
+        const redirectTo = redirectToParam && redirectToParam.startsWith('/') && !redirectToParam.startsWith('//')
+          ? redirectToParam
+          : null;
         router.push(redirectTo || '/dashboard');
         router.refresh();
       }

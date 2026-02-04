@@ -45,8 +45,8 @@ export async function GET(request: Request) {
     if (details?.client?.name) {
       appName = details.client.name;
     }
-    if (Array.isArray(details?.scopes) && details.scopes.length > 0) {
-      scopes = details.scopes;
+    if (typeof details?.scope === 'string' && details.scope.trim().length > 0) {
+      scopes = details.scope.split(' ');
     }
   }
 
@@ -151,8 +151,8 @@ export async function POST(request: Request) {
 
   if (action === 'deny') {
     const { data } = await supabase.auth.oauth.denyAuthorization(authorizationId);
-    if (data?.redirect_to) {
-      return NextResponse.redirect(data.redirect_to);
+    if (data?.redirect_url) {
+      return NextResponse.redirect(data.redirect_url);
     }
 
     const redirect = new URL(redirectUri);
@@ -165,8 +165,8 @@ export async function POST(request: Request) {
     skipBrowserRedirect: true,
   });
 
-  if (data?.redirect_to) {
-    return NextResponse.redirect(data.redirect_to);
+  if (data?.redirect_url) {
+    return NextResponse.redirect(data.redirect_url);
   }
 
   const redirect = new URL(redirectUri);
