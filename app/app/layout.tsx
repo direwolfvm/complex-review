@@ -6,9 +6,10 @@ export const metadata: Metadata = {
   description: "Review Works - Case and task management for environmental review processes",
   icons: {
     icon: [
+      { url: '/favicon.ico', type: 'image/x-icon' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
-    apple: '/favicon.svg',
+    apple: '/apple-touch-icon.png',
   },
 };
 
