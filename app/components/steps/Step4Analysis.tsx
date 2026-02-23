@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getTenantIdClient } from '@/lib/tenant/client';
 import MarkdownEditor from '@/components/editor/MarkdownEditor';
 import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
 
@@ -12,6 +13,7 @@ interface Step4AnalysisProps {
   decisionElement: DecisionElement | null;
   currentStep: number;
   userId: string;
+  tenantId: string;
   task: CaseEvent | null;
   documents: Document[];
   hedgedocBaseUrl?: string | null;
@@ -23,6 +25,7 @@ export default function Step4Analysis({
   decisionElement,
   currentStep,
   userId,
+  tenantId,
   task,
   documents,
   hedgedocBaseUrl = null,
@@ -93,6 +96,8 @@ export default function Step4Analysis({
 
     const data = (await response.json()) as { noteId: string; url: string };
 
+    const effectiveTenantId = tenantId || await getTenantIdClient();
+
     await createClient()
       .from('document')
       .update({
@@ -102,7 +107,8 @@ export default function Step4Analysis({
           hedgedoc_url: data.url,
         },
       })
-      .eq('id', doc.id);
+      .eq('id', doc.id)
+      .eq('tenant_id', effectiveTenantId);
 
     return data;
   };
@@ -149,6 +155,7 @@ export default function Step4Analysis({
 
     try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
       const docMeta = (analysisDoc.other as DocumentWorkflowMeta) || {};
 
       await supabase
@@ -160,7 +167,8 @@ export default function Step4Analysis({
             last_edited_by_user_id: userId,
           },
         })
-        .eq('id', analysisDoc.id);
+        .eq('id', analysisDoc.id)
+        .eq('tenant_id', effectiveTenantId);
 
       setError(null);
     } catch (err) {
@@ -174,8 +182,9 @@ export default function Step4Analysis({
     setLoading(true);
     setError(null);
 
-    try {
+  try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
 
       // Ensure HedgeDoc notes exist when embedded editor is enabled
       if (hedgedocBaseUrl) {
@@ -202,11 +211,13 @@ export default function Step4Analysis({
               last_edited_by_user_id: userId,
             },
           })
-          .eq('id', analysisDoc.id);
+          .eq('id', analysisDoc.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 2. Create decision payload
       await supabase.from('process_decision_payload').insert({
+        tenant_id: effectiveTenantId,
         process_decision_element: 4,
         process: processInstance.id,
         project: project.id,
@@ -232,7 +243,8 @@ export default function Step4Analysis({
               completed_at: new Date().toISOString(),
             },
           })
-          .eq('id', task.id);
+          .eq('id', task.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 4. Update process instance to step 5
@@ -248,7 +260,8 @@ export default function Step4Analysis({
           stage: 'Step 5: Approval',
           other: processMeta as unknown as Record<string, unknown>,
         })
-        .eq('id', processInstance.id);
+        .eq('id', processInstance.id)
+        .eq('tenant_id', effectiveTenantId);
 
       // 5. Find an approver to assign (exclude applicant and analyst - can't approve your own work)
       const projectMeta = (project.other as ProjectWorkflowMeta) || {};
@@ -260,8 +273,9 @@ export default function Step4Analysis({
         // Find an approver who is NOT the applicant or analyst
         const { data: approverAssignments } = await supabase
           .from('user_assignments')
-          .select('user_id')
-          .eq('user_role', 3); // Approver role
+            .select('user_id')
+            .eq('tenant_id', effectiveTenantId)
+            .eq('user_role', 3); // Approver role
 
         // Filter out the applicant and analyst
         const availableApprovers = (approverAssignments || []).filter(
@@ -274,13 +288,14 @@ export default function Step4Analysis({
         if (approverId) {
           await supabase
             .from('project')
-            .update({
+              .update({
               other: {
                 ...projectMeta,
                 approver_user_id: approverId,
               },
-            })
-            .eq('id', project.id);
+              })
+              .eq('id', project.id)
+              .eq('tenant_id', effectiveTenantId);
         }
       }
 
@@ -294,6 +309,7 @@ export default function Step4Analysis({
       };
 
       await supabase.from('case_event').insert({
+        tenant_id: effectiveTenantId,
         parent_process_id: processInstance.id,
         name: 'Review and Approve',
         description: `Review the environmental analysis for "${project.title}"`,
@@ -307,6 +323,7 @@ export default function Step4Analysis({
       // 7. Create notification for approver
       if (approverId) {
         await supabase.from('case_event').insert({
+          tenant_id: effectiveTenantId,
           parent_process_id: processInstance.id,
           name: 'Approval Required',
           description: `Environmental analysis for "${project.title}" is ready for approval`,

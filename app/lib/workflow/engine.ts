@@ -36,6 +36,15 @@ interface WorkflowError {
   message: string;
 }
 
+function getDecisionElementResponsibleRole(decisionElement: Record<string, unknown> | null | undefined): number | null {
+  if (!decisionElement) return null;
+  const direct = decisionElement.responsible_role;
+  if (typeof direct === 'number') return direct;
+  const other = decisionElement.other as Record<string, unknown> | undefined;
+  const nested = other?.responsible_role;
+  return typeof nested === 'number' ? nested : null;
+}
+
 /**
  * Initialize a new case with project, process instance, and first task
  * Pattern: Creates all related records in a transaction-like sequence
@@ -44,6 +53,7 @@ interface WorkflowError {
 export async function initializeCase(
   supabase: SupabaseClient<any>,
   userId: string,
+  tenantId: string,
   processModelId: number = DEFAULT_PROCESS_MODEL_ID
 ): Promise<InitializeCaseResult> {
   // 1. Create the project with applicant reference
@@ -54,6 +64,7 @@ export async function initializeCase(
   const { data: project, error: projectError } = await supabase
     .from('project')
     .insert({
+      tenant_id: tenantId,
       title: 'New Project',
       current_status: 'draft',
       other: projectMeta as unknown as Record<string, unknown>,
@@ -74,6 +85,7 @@ export async function initializeCase(
   const { data: processInstance, error: processError } = await supabase
     .from('process_instance')
     .insert({
+      tenant_id: tenantId,
       parent_project_id: project.id,
       process_model: processModelId,
       status: 'underway',
@@ -100,6 +112,7 @@ export async function initializeCase(
   const { data: initialTask, error: taskError } = await supabase
     .from('case_event')
     .insert({
+      tenant_id: tenantId,
       parent_process_id: processInstance.id,
       name: 'Complete Project Information',
       description: 'Fill out the project information form to proceed',
@@ -118,6 +131,7 @@ export async function initializeCase(
 
   // 4. Create initial decision payload placeholder for step 1 (auth completed)
   await supabase.from('process_decision_payload').insert({
+    tenant_id: tenantId,
     process_decision_element: 1,
     process: processInstance.id,
     project: project.id,
@@ -136,6 +150,7 @@ export async function completeTask(
   supabase: SupabaseClient<any>,
   taskId: number,
   userId: string,
+  tenantId: string,
   payload?: Record<string, unknown>
 ): Promise<{ nextTask?: CaseEvent; processInstance: ProcessInstance }> {
   // Get the current task with process instance
@@ -143,6 +158,7 @@ export async function completeTask(
     .from('case_event')
     .select('*, process_instance:parent_process_id(*)')
     .eq('id', taskId)
+    .eq('tenant_id', tenantId)
     .single();
 
   if (taskError || !task) {
@@ -167,11 +183,13 @@ export async function completeTask(
       outcome: 'completed',
       other: completedMeta as unknown as Record<string, unknown>,
     })
-    .eq('id', taskId);
+    .eq('id', taskId)
+    .eq('tenant_id', tenantId);
 
   // Create decision payload for this step if payload provided
   if (payload) {
     await supabase.from('process_decision_payload').insert({
+      tenant_id: tenantId,
       process_decision_element: taskMeta.decision_element_id,
       process: processInstance.id,
       project: processInstance.parent_project_id,
@@ -187,7 +205,8 @@ export async function completeTask(
     supabase,
     processInstance.id,
     nextStep,
-    userId
+    userId,
+    tenantId
   );
 
   return { nextTask, processInstance: updatedProcess };
@@ -200,13 +219,15 @@ export async function advanceToStep(
   supabase: SupabaseClient<any>,
   processInstanceId: number,
   stepNumber: number,
-  initiatingUserId: string
+  initiatingUserId: string,
+  tenantId: string
 ): Promise<{ nextTask?: CaseEvent; updatedProcess: ProcessInstance }> {
   // Get process instance with project
   const { data: processInstance, error: processError } = await supabase
     .from('process_instance')
     .select('*, project:parent_project_id(*)')
     .eq('id', processInstanceId)
+    .eq('tenant_id', tenantId)
     .single();
 
   if (processError || !processInstance) {
@@ -221,6 +242,7 @@ export async function advanceToStep(
     .from('decision_element')
     .select('*')
     .eq('id', stepNumber)
+    .eq('tenant_id', tenantId)
     .single();
 
   if (!decisionElement) {
@@ -237,12 +259,14 @@ export async function advanceToStep(
           workflow_status: 'approved',
         },
       })
-      .eq('id', processInstanceId);
+      .eq('id', processInstanceId)
+      .eq('tenant_id', tenantId);
 
     const { data: updatedProcess } = await supabase
       .from('process_instance')
       .select('*')
       .eq('id', processInstanceId)
+      .eq('tenant_id', tenantId)
       .single();
 
     return { updatedProcess: updatedProcess! };
@@ -250,16 +274,16 @@ export async function advanceToStep(
 
   // Determine assigned user based on role
   let assignedUserId = initiatingUserId;
-  const roleId = decisionElement.responsible_role;
+  const roleId = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>);
   const applicantId = projectMeta.applicant_user_id || '';
 
   if (roleId === 2) {
     // Analyst - use assigned analyst or find one (exclude applicant)
-    assignedUserId = projectMeta.analyst_user_id || await findUserWithRole(supabase, 2, [applicantId]);
+    assignedUserId = projectMeta.analyst_user_id || await findUserWithRole(supabase, 2, tenantId, [applicantId]);
   } else if (roleId === 3) {
     // Approver - use assigned approver or find one (exclude applicant and analyst)
     const analystId = projectMeta.analyst_user_id || '';
-    assignedUserId = projectMeta.approver_user_id || await findUserWithRole(supabase, 3, [applicantId, analystId]);
+    assignedUserId = projectMeta.approver_user_id || await findUserWithRole(supabase, 3, tenantId, [applicantId, analystId]);
   }
 
   // Update process instance stage
@@ -282,7 +306,8 @@ export async function advanceToStep(
       stage: stepNames[stepNumber] || `Step ${stepNumber}`,
       other: processMeta as unknown as Record<string, unknown>,
     })
-    .eq('id', processInstanceId);
+    .eq('id', processInstanceId)
+    .eq('tenant_id', tenantId);
 
   // Create task for the new step
   const taskType = getTaskType(stepNumber);
@@ -297,6 +322,7 @@ export async function advanceToStep(
   const { data: nextTask, error: taskError } = await supabase
     .from('case_event')
     .insert({
+      tenant_id: tenantId,
       parent_process_id: processInstanceId,
       name: decisionElement.title || `Step ${stepNumber}`,
       description: decisionElement.description,
@@ -315,13 +341,14 @@ export async function advanceToStep(
 
   // For document steps, create the document record
   if (taskType === 'document') {
-    await createDocumentForStep(supabase, processInstanceId, stepNumber, assignedUserId);
+    await createDocumentForStep(supabase, processInstanceId, stepNumber, assignedUserId, tenantId);
   }
 
   const { data: updatedProcess } = await supabase
     .from('process_instance')
     .select('*')
     .eq('id', processInstanceId)
+    .eq('tenant_id', tenantId)
     .single();
 
   return { nextTask: nextTask!, updatedProcess: updatedProcess! };
@@ -334,6 +361,7 @@ export async function handleApproval(
   supabase: SupabaseClient<any>,
   taskId: number,
   approverId: string,
+  tenantId: string,
   approved: boolean,
   comments?: string
 ): Promise<{ processInstance: ProcessInstance; nextTask?: CaseEvent }> {
@@ -341,6 +369,7 @@ export async function handleApproval(
     .from('case_event')
     .select('*, process_instance:parent_process_id(*, project:parent_project_id(*))')
     .eq('id', taskId)
+    .eq('tenant_id', tenantId)
     .single();
 
   if (taskError || !task) {
@@ -365,10 +394,12 @@ export async function handleApproval(
         approval_comments: comments,
       },
     })
-    .eq('id', taskId);
+    .eq('id', taskId)
+    .eq('tenant_id', tenantId);
 
   // Create decision payload
   await supabase.from('process_decision_payload').insert({
+    tenant_id: tenantId,
     process_decision_element: 5,
     process: processInstance.id,
     project: processInstance.parent_project_id,
@@ -392,12 +423,13 @@ export async function handleApproval(
           workflow_status: 'approved',
         },
       })
-      .eq('id', processInstance.id);
+      .eq('id', processInstance.id)
+      .eq('tenant_id', tenantId);
 
     // Notify analyst of approval
     const analystId = projectMeta.analyst_user_id;
     if (analystId) {
-      await createNotification(supabase, analystId, processInstance.id, project.id, {
+      await createNotification(supabase, analystId, processInstance.id, project.id, tenantId, {
         type: 'approval',
         title: 'Case Approved',
         message: `Your analysis for "${project.title}" has been approved.${comments ? ` Comment: ${comments}` : ''}`,
@@ -408,6 +440,7 @@ export async function handleApproval(
       .from('process_instance')
       .select('*')
       .eq('id', processInstance.id)
+      .eq('tenant_id', tenantId)
       .single();
 
     return { processInstance: updatedProcess! };
@@ -417,7 +450,8 @@ export async function handleApproval(
       supabase,
       processInstance.id,
       4,
-      approverId
+      approverId,
+      tenantId
     );
 
     // Update the new task with revision context
@@ -433,12 +467,13 @@ export async function handleApproval(
             revision_requested_by: approverId,
           },
         })
-        .eq('id', nextTask.id);
+        .eq('id', nextTask.id)
+        .eq('tenant_id', tenantId);
 
       // Notify analyst of revision request
       const analystId = projectMeta.analyst_user_id;
       if (analystId) {
-        await createNotification(supabase, analystId, processInstance.id, project.id, {
+        await createNotification(supabase, analystId, processInstance.id, project.id, tenantId, {
           type: 'revision_requested',
           title: 'Revisions Requested',
           message: `Revisions requested for "${project.title}": ${comments || 'Please review your analysis.'}`,
@@ -469,11 +504,13 @@ function getTaskType(stepNumber: number): 'form' | 'document' | 'approval' {
 async function findUserWithRole(
   supabase: SupabaseClient<any>,
   roleId: number,
+  tenantId: string,
   excludeUserIds: string[] = []
 ): Promise<string> {
   const { data } = await supabase
     .from('user_assignments')
     .select('user_id')
+    .eq('tenant_id', tenantId)
     .eq('user_role', roleId);
 
   // Filter out excluded users (e.g., applicant can't be their own reviewer)
@@ -488,7 +525,8 @@ async function createDocumentForStep(
   supabase: SupabaseClient<any>,
   processInstanceId: number,
   stepNumber: number,
-  userId: string
+  userId: string,
+  tenantId: string
 ): Promise<Document> {
   const docMeta: DocumentWorkflowMeta = {
     document_role: stepNumber === 3 ? 'draft' : 'analysis',
@@ -499,6 +537,7 @@ async function createDocumentForStep(
   const { data: doc, error } = await supabase
     .from('document')
     .insert({
+      tenant_id: tenantId,
       parent_process_id: processInstanceId,
       title: stepNumber === 3 ? 'Applicant Draft Document' : 'Environmental Analysis',
       document_type: stepNumber === 3 ? 'draft' : 'analysis',
@@ -561,10 +600,12 @@ async function createNotification(
   userId: string,
   processInstanceId: number,
   projectId: number,
+  tenantId: string,
   data: NotificationData
 ): Promise<void> {
   // Store notification in case_event as a notification type
   await supabase.from('case_event').insert({
+    tenant_id: tenantId,
     parent_process_id: processInstanceId,
     name: data.title,
     description: data.message,
@@ -584,11 +625,13 @@ async function createNotification(
  */
 export async function getUserRoles(
   supabase: SupabaseClient<any>,
-  userId: string
+  userId: string,
+  tenantId: string
 ): Promise<number[]> {
   const { data: assignments } = await supabase
     .from('user_assignments')
     .select('user_role')
+    .eq('tenant_id', tenantId)
     .eq('user_id', userId);
 
   return assignments?.map(a => a.user_role).filter((r): r is number => r !== null) || [];
@@ -600,9 +643,10 @@ export async function getUserRoles(
 export async function userHasRole(
   supabase: SupabaseClient<any>,
   userId: string,
+  tenantId: string,
   roleId: number
 ): Promise<boolean> {
-  const roles = await getUserRoles(supabase, userId);
+  const roles = await getUserRoles(supabase, userId, tenantId);
   return roles.includes(roleId);
 }
 
@@ -618,17 +662,19 @@ export async function canUserAccessStep(
   supabase: SupabaseClient<any>,
   userId: string,
   stepNumber: number,
-  processInstanceId: number
+  processInstanceId: number,
+  tenantId: string
 ): Promise<{ canAccess: boolean; requiredRole: number | null; userRoles: number[] }> {
   // Get the decision element for this step to find required role
   const { data: decisionElement } = await supabase
     .from('decision_element')
-    .select('responsible_role')
+    .select('other')
     .eq('id', stepNumber)
+    .eq('tenant_id', tenantId)
     .single();
 
-  const requiredRole = decisionElement?.responsible_role || null;
-  const userRoles = await getUserRoles(supabase, userId);
+  const requiredRole = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>) || null;
+  const userRoles = await getUserRoles(supabase, userId, tenantId);
 
   // If no required role is set, anyone can access
   if (!requiredRole) {
@@ -640,6 +686,7 @@ export async function canUserAccessStep(
     .from('process_instance')
     .select('project:parent_project_id(*)')
     .eq('id', processInstanceId)
+    .eq('tenant_id', tenantId)
     .single();
 
   const project = processInstance?.project as unknown as Project;
@@ -684,12 +731,14 @@ export function getRoleName(roleId: number): string {
  */
 export async function getUserTasks(
   supabase: SupabaseClient<any>,
-  userId: string
+  userId: string,
+  tenantId: string
 ): Promise<CaseEvent[]> {
   // Get user's role assignments
   const { data: assignments } = await supabase
     .from('user_assignments')
     .select('user_role')
+    .eq('tenant_id', tenantId)
     .eq('user_id', userId);
 
   const roleIds = assignments?.map(a => a.user_role) || [];
@@ -704,6 +753,7 @@ export async function getUserTasks(
         project:parent_project_id(*)
       )
     `)
+    .eq('tenant_id', tenantId)
     .eq('type', 'task')
     .or(`assigned_entity.eq.${userId}`)
     .order('created_at', { ascending: false });
@@ -727,11 +777,13 @@ export async function getUserTasks(
  */
 export async function getUserNotifications(
   supabase: SupabaseClient<any>,
-  userId: string
+  userId: string,
+  tenantId: string
 ): Promise<CaseEvent[]> {
   const { data, error } = await supabase
     .from('case_event')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('type', 'notification')
     .eq('assigned_entity', userId)
     .order('created_at', { ascending: false });
@@ -748,12 +800,14 @@ export async function getUserNotifications(
  */
 export async function markNotificationRead(
   supabase: SupabaseClient<any>,
-  notificationId: number
+  notificationId: number,
+  tenantId: string
 ): Promise<void> {
   const { data: notification } = await supabase
     .from('case_event')
     .select('other')
     .eq('id', notificationId)
+    .eq('tenant_id', tenantId)
     .single();
 
   await supabase
@@ -766,5 +820,6 @@ export async function markNotificationRead(
         read_at: new Date().toISOString(),
       },
     })
-    .eq('id', notificationId);
+    .eq('id', notificationId)
+    .eq('tenant_id', tenantId);
 }

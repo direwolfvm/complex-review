@@ -12,9 +12,10 @@ interface DashboardLayoutProps {
     id: string;
     email?: string;
   };
+  tenantId: string;
 }
 
-export default function DashboardLayout({ children, user }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, user, tenantId }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -37,6 +38,7 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
       const { data, error } = await supabase
         .from('case_event')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('type', 'notification')
         .eq('assigned_entity', user.id)
         .eq('status', 'pending')
@@ -82,7 +84,8 @@ export default function DashboardLayout({ children, user }: DashboardLayoutProps
             read_at: new Date().toISOString(),
           },
         })
-        .eq('id', notificationId);
+        .eq('id', notificationId)
+        .eq('tenant_id', tenantId);
 
       setNotifications(notifications.filter(n => n.id !== notificationId));
     } catch (err) {

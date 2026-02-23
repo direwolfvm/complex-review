@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getTenantIdClient } from '@/lib/tenant/client';
 import Form from '@rjsf/core';
 import validator from '@rjsf/validator-ajv8';
 import type { RJSFSchema } from '@rjsf/utils';
@@ -14,6 +15,7 @@ interface Step2FormProps {
   decisionElement: DecisionElement | null;
   currentStep: number;
   userId: string;
+  tenantId: string;
   task: CaseEvent | null;
   documents: Document[];
   hedgedocBaseUrl?: string | null;
@@ -153,6 +155,7 @@ export default function Step2Form({
   decisionElement,
   currentStep,
   userId,
+  tenantId,
   task,
   hedgedocBaseUrl = null,
 }: Step2FormProps) {
@@ -191,6 +194,7 @@ export default function Step2Form({
 
     try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
 
       // 1. Update project with form data (convert empty strings to null for optional fields)
       const { error: projectError } = await supabase
@@ -203,12 +207,14 @@ export default function Step2Form({
           location_text: (formData.location_text as string) || null,
           current_status: 'underway',
         })
-        .eq('id', project.id);
+        .eq('id', project.id)
+        .eq('tenant_id', effectiveTenantId);
 
       if (projectError) throw projectError;
 
       // 2. Create decision payload with form data
       await supabase.from('process_decision_payload').insert({
+        tenant_id: effectiveTenantId,
         process_decision_element: 2,
         process: processInstance.id,
         project: project.id,
@@ -231,7 +237,8 @@ export default function Step2Form({
               completed_at: new Date().toISOString(),
             },
           })
-          .eq('id', task.id);
+          .eq('id', task.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 4. Update process instance to step 3
@@ -247,7 +254,8 @@ export default function Step2Form({
           stage: 'Step 3: Applicant Document',
           other: processMeta as unknown as Record<string, unknown>,
         })
-        .eq('id', processInstance.id);
+        .eq('id', processInstance.id)
+        .eq('tenant_id', effectiveTenantId);
 
       // 5. Create task for step 3
       const newTaskMeta: CaseEventWorkflowMeta = {
@@ -259,6 +267,7 @@ export default function Step2Form({
       };
 
       await supabase.from('case_event').insert({
+        tenant_id: effectiveTenantId,
         parent_process_id: processInstance.id,
         name: 'Complete Analysis Document',
         description: 'Draft your project analysis document',
@@ -290,6 +299,7 @@ ${formData.description || '[Describe the project in detail]'}
       };
 
       await supabase.from('document').insert({
+        tenant_id: effectiveTenantId,
         parent_process_id: processInstance.id,
         title: 'Applicant Draft Document',
         document_type: 'draft',
@@ -302,6 +312,7 @@ ${formData.description || '[Describe the project in detail]'}
         const { data: latestDoc } = await supabase
           .from('document')
           .select('*')
+          .eq('tenant_id', effectiveTenantId)
           .eq('parent_process_id', processInstance.id)
           .eq('document_type', 'draft')
           .order('created_at', { ascending: false })
@@ -329,7 +340,8 @@ ${formData.description || '[Describe the project in detail]'}
                   hedgedoc_url: data.url,
                 },
               })
-              .eq('id', latestDoc.id);
+              .eq('id', latestDoc.id)
+              .eq('tenant_id', effectiveTenantId);
           }
         }
       }

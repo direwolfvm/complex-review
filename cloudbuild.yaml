@@ -16,6 +16,8 @@ steps:
       - '--build-arg'
       - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=$$NEXT_PUBLIC_SUPABASE_ANON_KEY'
       - '--build-arg'
+      - 'NEXT_PUBLIC_TENANT_SLUG=${_NEXT_PUBLIC_TENANT_SLUG}'
+      - '--build-arg'
       - 'NEXT_PUBLIC_APP_BASE_URL=${_NEXT_PUBLIC_APP_BASE_URL}'
       - '-t'
       - 'gcr.io/${PROJECT_ID}/${_SERVICE_NAME}:${SHORT_SHA}'
@@ -60,7 +62,7 @@ steps:
       - '--max-instances'
       - '10'
       - '--update-env-vars'
-      - 'NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL},NEXT_PUBLIC_APP_BASE_URL=${_NEXT_PUBLIC_APP_BASE_URL}'
+      - 'NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL},NEXT_PUBLIC_TENANT_SLUG=${_NEXT_PUBLIC_TENANT_SLUG},CANONICAL_TENANT_SLUG=${_CANONICAL_TENANT_SLUG},NEXT_PUBLIC_APP_BASE_URL=${_NEXT_PUBLIC_APP_BASE_URL}'
       - '--update-secrets'
       - 'NEXT_PUBLIC_SUPABASE_ANON_KEY=NEXT_PUBLIC_SUPABASE_ANON_KEY:latest'
 
@@ -69,6 +71,8 @@ substitutions:
   _SERVICE_NAME: 'complex-review'
   _REGION: 'us-central1'
   _NEXT_PUBLIC_SUPABASE_URL: ''  # Set this in your Cloud Build trigger
+  _NEXT_PUBLIC_TENANT_SLUG: 'reviewworks'
+  _CANONICAL_TENANT_SLUG: 'reviewworks'
   _NEXT_PUBLIC_APP_BASE_URL: ''  # Set this in your Cloud Build trigger (your Cloud Run URL)
 
 images:

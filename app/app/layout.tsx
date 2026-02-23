@@ -21,13 +21,14 @@ export default function RootLayout({
   // Read from server environment at runtime
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const tenantSlug = process.env.NEXT_PUBLIC_TENANT_SLUG || process.env.CANONICAL_TENANT_SLUG || 'reviewworks';
   
   return (
     <html lang="en">
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.__ENV__ = { NEXT_PUBLIC_SUPABASE_URL: '${supabaseUrl}', NEXT_PUBLIC_SUPABASE_ANON_KEY: '${supabaseKey}' };`,
+            __html: `window.__ENV__ = { NEXT_PUBLIC_SUPABASE_URL: '${supabaseUrl}', NEXT_PUBLIC_SUPABASE_ANON_KEY: '${supabaseKey}', NEXT_PUBLIC_TENANT_SLUG: '${tenantSlug}' };`,
           }}
         />
       </head>

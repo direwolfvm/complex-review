@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { ProcessInstanceWorkflowMeta, CaseEventWorkflowMeta, DocumentWorkflowMeta } from '@/lib/types/database';
+import { getTenantContextForUser } from '@/lib/tenant/server';
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -73,6 +74,7 @@ export default async function CaseDetailPage({
   if (!user) {
     redirect('/login');
   }
+  const { tenantId } = await getTenantContextForUser(user.id);
 
   // Get process instance with project
   const { data: processInstance, error } = await supabase
@@ -82,6 +84,7 @@ export default async function CaseDetailPage({
       project:parent_project_id(*)
     `)
     .eq('id', parseInt(id))
+    .eq('tenant_id', tenantId)
     .single();
 
   if (error || !processInstance) {
@@ -96,6 +99,7 @@ export default async function CaseDetailPage({
   const { data: tasks } = await supabase
     .from('case_event')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('parent_process_id', parseInt(id))
     .eq('type', 'task')
     .order('created_at', { ascending: false });
@@ -104,6 +108,7 @@ export default async function CaseDetailPage({
   const { data: documents } = await supabase
     .from('document')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('parent_process_id', parseInt(id))
     .order('created_at', { ascending: false });
 

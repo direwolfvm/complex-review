@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getTenantIdClient } from '@/lib/tenant/client';
 import MarkdownEditor from '@/components/editor/MarkdownEditor';
 import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
 
@@ -12,6 +13,7 @@ interface Step3DocumentProps {
   decisionElement: DecisionElement | null;
   currentStep: number;
   userId: string;
+  tenantId: string;
   task: CaseEvent | null;
   documents: Document[];
   hedgedocBaseUrl?: string | null;
@@ -23,6 +25,7 @@ export default function Step3Document({
   decisionElement,
   currentStep,
   userId,
+  tenantId,
   task,
   documents,
   hedgedocBaseUrl = null,
@@ -74,6 +77,8 @@ export default function Step3Document({
 
     const data = (await response.json()) as { noteId: string; url: string };
 
+    const effectiveTenantId = tenantId || await getTenantIdClient();
+
     await createClient()
       .from('document')
       .update({
@@ -83,7 +88,8 @@ export default function Step3Document({
           hedgedoc_url: data.url,
         },
       })
-      .eq('id', doc.id);
+      .eq('id', doc.id)
+      .eq('tenant_id', effectiveTenantId);
 
     return data;
   };
@@ -121,6 +127,7 @@ export default function Step3Document({
 
     try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
       const docMeta = (document.other as DocumentWorkflowMeta) || {};
 
       await supabase
@@ -132,7 +139,8 @@ export default function Step3Document({
             last_edited_by_user_id: userId,
           },
         })
-        .eq('id', document.id);
+        .eq('id', document.id)
+        .eq('tenant_id', effectiveTenantId);
 
       setError(null);
     } catch (err) {
@@ -146,8 +154,9 @@ export default function Step3Document({
     setLoading(true);
     setError(null);
 
-    try {
+  try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
 
       // Ensure HedgeDoc note exists when embedded editor is enabled
       if (hedgedocBaseUrl && document) {
@@ -170,11 +179,13 @@ export default function Step3Document({
               last_edited_by_user_id: userId,
             },
           })
-          .eq('id', document.id);
+          .eq('id', document.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 2. Create decision payload
       await supabase.from('process_decision_payload').insert({
+        tenant_id: effectiveTenantId,
         process_decision_element: 3,
         process: processInstance.id,
         project: project.id,
@@ -197,7 +208,8 @@ export default function Step3Document({
               completed_at: new Date().toISOString(),
             },
           })
-          .eq('id', task.id);
+          .eq('id', task.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 4. Update process instance to step 4
@@ -213,7 +225,8 @@ export default function Step3Document({
           stage: 'Step 4: Analyst Review',
           other: processMeta as unknown as Record<string, unknown>,
         })
-        .eq('id', processInstance.id);
+        .eq('id', processInstance.id)
+        .eq('tenant_id', effectiveTenantId);
 
       // 5. Find an analyst to assign (exclude the applicant - can't review your own case)
       const projectMeta = (project.other as ProjectWorkflowMeta) || {};
@@ -224,8 +237,9 @@ export default function Step3Document({
         // Find an analyst who is NOT the applicant
         const { data: analystAssignments } = await supabase
           .from('user_assignments')
-          .select('user_id')
-          .eq('user_role', 2); // Analyst role
+            .select('user_id')
+            .eq('tenant_id', effectiveTenantId)
+            .eq('user_role', 2); // Analyst role
 
         // Filter out the applicant
         const availableAnalysts = (analystAssignments || []).filter(
@@ -238,13 +252,14 @@ export default function Step3Document({
         if (analystId) {
           await supabase
             .from('project')
-            .update({
+              .update({
               other: {
                 ...projectMeta,
                 analyst_user_id: analystId,
               },
-            })
-            .eq('id', project.id);
+              })
+              .eq('id', project.id)
+              .eq('tenant_id', effectiveTenantId);
         }
       }
 
@@ -258,6 +273,7 @@ export default function Step3Document({
       };
 
       await supabase.from('case_event').insert({
+        tenant_id: effectiveTenantId,
         parent_process_id: processInstance.id,
         name: 'Complete Environmental Review',
         description: 'Review the applicant document and produce the environmental analysis',
@@ -292,6 +308,7 @@ export default function Step3Document({
       };
 
       await supabase.from('document').insert({
+        tenant_id: effectiveTenantId,
         parent_process_id: processInstance.id,
         title: 'Environmental Analysis',
         document_type: 'analysis',
@@ -304,6 +321,7 @@ export default function Step3Document({
       // 8. Create notification for analyst
       if (analystId) {
         await supabase.from('case_event').insert({
+          tenant_id: effectiveTenantId,
           parent_process_id: processInstance.id,
           name: 'New Case Assigned',
           description: `You have been assigned to review "${project.title}"`,

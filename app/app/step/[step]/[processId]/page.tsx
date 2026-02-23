@@ -7,6 +7,7 @@ import Step4Analysis from '@/components/steps/Step4Analysis';
 import Step5Approval from '@/components/steps/Step5Approval';
 import { canUserAccessStep, getRoleName } from '@/lib/workflow/engine';
 import type { Project, ProcessInstanceWorkflowMeta, DecisionElement } from '@/lib/types/database';
+import { getTenantContextForUser } from '@/lib/tenant/server';
 
 export default async function StepPage({
   params,
@@ -26,6 +27,7 @@ export default async function StepPage({
   if (!user) {
     redirect('/login');
   }
+  const { tenantId } = await getTenantContextForUser(user.id);
 
   // Get process instance with project
   const { data: processInstance, error } = await supabase
@@ -35,6 +37,7 @@ export default async function StepPage({
       project:parent_project_id(*)
     `)
     .eq('id', parseInt(processId))
+    .eq('tenant_id', tenantId)
     .single();
 
   if (error || !processInstance) {
@@ -50,7 +53,8 @@ export default async function StepPage({
     supabase,
     user.id,
     stepNumber,
-    parseInt(processId)
+    parseInt(processId),
+    tenantId
   );
 
   // If user doesn't have access, show access denied page
@@ -102,12 +106,14 @@ export default async function StepPage({
     .from('decision_element')
     .select('*')
     .eq('id', stepNumber)
+    .eq('tenant_id', tenantId)
     .single();
 
   // Get existing task for this step
   const { data: existingTask } = await supabase
     .from('case_event')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('parent_process_id', parseInt(processId))
     .eq('type', 'task')
     .eq('tier', stepNumber)
@@ -119,6 +125,7 @@ export default async function StepPage({
   const { data: documents } = await supabase
     .from('document')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('parent_process_id', parseInt(processId));
 
   const hedgedocBaseUrl = process.env.HEDGEDOC_BASE_URL || null;
@@ -129,6 +136,7 @@ export default async function StepPage({
     decisionElement: decisionElement as DecisionElement | null,
     currentStep,
     userId: user.id,
+    tenantId,
     task: existingTask,
     documents: documents || [],
     hedgedocBaseUrl,

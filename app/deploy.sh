@@ -55,11 +55,14 @@ fi
 
 # Default APP_BASE_URL if not set (will be updated after first deploy)
 NEXT_PUBLIC_APP_BASE_URL="${NEXT_PUBLIC_APP_BASE_URL:-https://${SERVICE_NAME}-${PROJECT_ID}.${REGION}.run.app}"
+NEXT_PUBLIC_TENANT_SLUG="${NEXT_PUBLIC_TENANT_SLUG:-reviewworks}"
+CANONICAL_TENANT_SLUG="${CANONICAL_TENANT_SLUG:-${NEXT_PUBLIC_TENANT_SLUG}}"
 
 echo -e "${GREEN}Step 1: Building container image...${NC}"
 gcloud builds submit --tag "${IMAGE_NAME}" \
     --build-arg "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" \
     --build-arg "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
+    --build-arg "NEXT_PUBLIC_TENANT_SLUG=${NEXT_PUBLIC_TENANT_SLUG}" \
     --build-arg "NEXT_PUBLIC_APP_BASE_URL=${NEXT_PUBLIC_APP_BASE_URL}"
 
 echo ""
@@ -78,6 +81,8 @@ DEPLOY_CMD="gcloud run deploy ${SERVICE_NAME} \
     --max-instances 10 \
     --set-env-vars NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
     --set-env-vars NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+    --set-env-vars NEXT_PUBLIC_TENANT_SLUG=${NEXT_PUBLIC_TENANT_SLUG} \
+    --set-env-vars CANONICAL_TENANT_SLUG=${CANONICAL_TENANT_SLUG} \
     --set-env-vars NEXT_PUBLIC_APP_BASE_URL=${NEXT_PUBLIC_APP_BASE_URL}"
 
 # Add optional environment variables if set

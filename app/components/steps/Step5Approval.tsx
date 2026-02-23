@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getTenantIdClient } from '@/lib/tenant/client';
 import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
 
 interface Step5ApprovalProps {
@@ -11,6 +12,7 @@ interface Step5ApprovalProps {
   decisionElement: DecisionElement | null;
   currentStep: number;
   userId: string;
+  tenantId: string;
   task: CaseEvent | null;
   documents: Document[];
 }
@@ -21,6 +23,7 @@ export default function Step5Approval({
   decisionElement,
   currentStep,
   userId,
+  tenantId,
   task,
   documents,
 }: Step5ApprovalProps) {
@@ -53,6 +56,7 @@ export default function Step5Approval({
 
     try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
       const taskMeta = (task?.other as CaseEventWorkflowMeta) || {};
       const projectMeta = (project.other as ProjectWorkflowMeta) || {};
 
@@ -71,11 +75,13 @@ export default function Step5Approval({
               approval_comments: comments,
             },
           })
-          .eq('id', task.id);
+          .eq('id', task.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 2. Create decision payload
       await supabase.from('process_decision_payload').insert({
+        tenant_id: effectiveTenantId,
         process_decision_element: 5,
         process: processInstance.id,
         project: project.id,
@@ -104,7 +110,8 @@ export default function Step5Approval({
           complete_date: new Date().toISOString().split('T')[0],
           other: processMeta as unknown as Record<string, unknown>,
         })
-        .eq('id', processInstance.id);
+        .eq('id', processInstance.id)
+        .eq('tenant_id', effectiveTenantId);
 
       // 4. Update project status
       await supabase
@@ -112,12 +119,14 @@ export default function Step5Approval({
         .update({
           current_status: 'approved',
         })
-        .eq('id', project.id);
+        .eq('id', project.id)
+        .eq('tenant_id', effectiveTenantId);
 
       // 5. Notify analyst of approval
       const analystId = projectMeta.analyst_user_id;
       if (analystId) {
         await supabase.from('case_event').insert({
+          tenant_id: effectiveTenantId,
           parent_process_id: processInstance.id,
           name: 'Case Approved',
           description: `Your environmental analysis for "${project.title}" has been approved!${comments ? ` Comment: ${comments}` : ''}`,
@@ -152,6 +161,7 @@ export default function Step5Approval({
 
     try {
       const supabase = createClient();
+      const effectiveTenantId = tenantId || await getTenantIdClient();
       const taskMeta = (task?.other as CaseEventWorkflowMeta) || {};
       const projectMeta = (project.other as ProjectWorkflowMeta) || {};
 
@@ -170,11 +180,13 @@ export default function Step5Approval({
               approval_comments: comments,
             },
           })
-          .eq('id', task.id);
+          .eq('id', task.id)
+          .eq('tenant_id', effectiveTenantId);
       }
 
       // 2. Create decision payload
       await supabase.from('process_decision_payload').insert({
+        tenant_id: effectiveTenantId,
         process_decision_element: 5,
         process: processInstance.id,
         project: project.id,
@@ -200,7 +212,8 @@ export default function Step5Approval({
           stage: 'Step 4: Analyst Review (Revision)',
           other: processMeta as unknown as Record<string, unknown>,
         })
-        .eq('id', processInstance.id);
+        .eq('id', processInstance.id)
+        .eq('tenant_id', effectiveTenantId);
 
       // 4. Create new task for analyst with revision request
       const analystId = projectMeta.analyst_user_id || '';
@@ -216,6 +229,7 @@ export default function Step5Approval({
       } as CaseEventWorkflowMeta & { revision_requested: boolean; revision_comments: string; revision_requested_by: string };
 
       await supabase.from('case_event').insert({
+        tenant_id: effectiveTenantId,
         parent_process_id: processInstance.id,
         name: 'Revise Environmental Review',
         description: `Revisions requested: ${comments}`,
@@ -229,6 +243,7 @@ export default function Step5Approval({
       // 5. Notify analyst of revision request
       if (analystId) {
         await supabase.from('case_event').insert({
+          tenant_id: effectiveTenantId,
           parent_process_id: processInstance.id,
           name: 'Revisions Requested',
           description: `Your environmental analysis for "${project.title}" requires revisions: ${comments}`,

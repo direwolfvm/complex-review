@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Project, ProcessInstanceWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
+import { getTenantContextForUser } from '@/lib/tenant/server';
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -26,6 +27,7 @@ export default async function CasesPage() {
   if (!user) {
     redirect('/login');
   }
+  const { tenantId } = await getTenantContextForUser(user.id);
 
   // Get all cases
   const { data: allCases } = await supabase
@@ -34,6 +36,7 @@ export default async function CasesPage() {
       *,
       project:parent_project_id(*)
     `)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
 
   // Filter cases where user is involved (or show all for demo)

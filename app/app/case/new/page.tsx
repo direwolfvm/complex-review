@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getTenantIdClient } from '@/lib/tenant/client';
 import type { ProjectWorkflowMeta, ProcessInstanceWorkflowMeta, CaseEventWorkflowMeta } from '@/lib/types/database';
 
 export default function NewCasePage() {
@@ -16,6 +17,7 @@ export default function NewCasePage() {
 
     try {
       const supabase = createClient();
+      const tenantId = await getTenantIdClient();
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -30,6 +32,7 @@ export default function NewCasePage() {
       const { data: project, error: projectError } = await supabase
         .from('project')
         .insert({
+          tenant_id: tenantId,
           title: 'New Project',
           current_status: 'draft',
           other: projectMeta as unknown as Record<string, unknown>,
@@ -50,6 +53,7 @@ export default function NewCasePage() {
       const { data: processInstance, error: processError } = await supabase
         .from('process_instance')
         .insert({
+          tenant_id: tenantId,
           parent_project_id: project.id,
           process_model: 1,
           status: 'underway',
@@ -76,6 +80,7 @@ export default function NewCasePage() {
       const { error: taskError } = await supabase
         .from('case_event')
         .insert({
+          tenant_id: tenantId,
           parent_process_id: processInstance.id,
           name: 'Complete Project Information',
           description: 'Fill out the project information form to proceed',
@@ -92,6 +97,7 @@ export default function NewCasePage() {
 
       // 4. Create decision payload for auth step (step 1 completed)
       await supabase.from('process_decision_payload').insert({
+        tenant_id: tenantId,
         process_decision_element: 1,
         process: processInstance.id,
         project: project.id,
