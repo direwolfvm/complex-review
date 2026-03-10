@@ -399,7 +399,7 @@ export default function Step4Analysis({
             <p className="mt-4 text-gray-600">This step has been completed.</p>
             <button
               onClick={() => router.push(`/case/${processInstance.id}`)}
-              className="mt-4 text-blue-600 hover:text-blue-800"
+              className="mt-4 text-green-600 hover:text-green-800"
             >
               View Case
             </button>
@@ -496,7 +496,7 @@ export default function Step4Analysis({
                 <button
                   onClick={handleComplete}
                   disabled={loading || !isCurrentStep || (!hedgedocBaseUrl && !content.trim())}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                 >
                   {loading ? 'Submitting...' : 'Submit for Approval'}
                 </button>

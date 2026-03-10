@@ -124,8 +124,8 @@ export default async function LandingPage() {
 
             {/* Developer Resources Panel */}
             <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
               </div>
@@ -136,7 +136,7 @@ export default async function LandingPage() {
               </p>
               <Link
                 href="/developers"
-                className="mt-4 inline-flex items-center text-blue-600 font-medium hover:text-blue-700"
+                className="mt-4 inline-flex items-center text-green-600 font-medium hover:text-green-700"
               >
                 View API Docs
                 <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,8 +181,8 @@ export default async function LandingPage() {
             handle each step of the review process.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
-              <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold mb-4">
+            <div className="bg-green-50 rounded-xl p-6 border border-green-100">
+              <div className="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center font-bold mb-4">
                 A
               </div>
               <h3 className="text-lg font-bold text-gray-900">Applicant</h3>
@@ -191,8 +191,8 @@ export default async function LandingPage() {
                 Handles Steps 1-3 of the workflow.
               </p>
             </div>
-            <div className="bg-purple-50 rounded-xl p-6 border border-purple-100">
-              <div className="w-10 h-10 bg-purple-600 text-white rounded-lg flex items-center justify-center font-bold mb-4">
+            <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">
+              <div className="w-10 h-10 bg-emerald-600 text-white rounded-lg flex items-center justify-center font-bold mb-4">
                 R
               </div>
               <h3 className="text-lg font-bold text-gray-900">Analyst</h3>

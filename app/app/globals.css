@@ -41,7 +41,7 @@ body {
 .rjsf input[type="date"],
 .rjsf textarea,
 .rjsf select {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white;
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white;
 }
 
 /* Ensure all form inputs have readable dark text */
@@ -69,7 +69,7 @@ textarea::placeholder {
 }
 
 .rjsf button[type="submit"] {
-  @apply bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  @apply bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
 }
 
 /* Status badges */
@@ -90,7 +90,7 @@ textarea::placeholder {
 }
 
 .badge-approved {
-  @apply bg-blue-100 text-blue-800;
+  @apply bg-green-100 text-green-800;
 }
 
 .badge-rejected {

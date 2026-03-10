@@ -8,9 +8,9 @@ import type { CaseEvent, ProcessInstance, Project, CaseEventWorkflowMeta, Proces
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
-    'in progress': 'bg-blue-100 text-blue-800',
+    'in progress': 'bg-green-100 text-green-800',
     completed: 'bg-green-100 text-green-800',
-    underway: 'bg-blue-100 text-blue-800',
+    underway: 'bg-green-100 text-green-800',
     approved: 'bg-green-100 text-green-800',
   };
 
@@ -98,7 +98,7 @@ export default async function DashboardPage() {
               {roleIds.map((roleId) => (
                 <span
                   key={roleId}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
                 >
                   {getRoleName(roleId as number)}
                 </span>
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/case/new"
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -184,7 +184,7 @@ export default async function DashboardPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <Link
                           href={`/step/${meta?.step_number || 2}/${processInstance?.id}`}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-green-600 hover:text-green-900"
                         >
                           Go to task
                         </Link>
@@ -202,7 +202,7 @@ export default async function DashboardPage() {
       <section>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">My Cases</h2>
-          <Link href="/cases" className="text-sm text-blue-600 hover:text-blue-800">
+          <Link href="/cases" className="text-sm text-green-600 hover:text-green-800">
             View all
           </Link>
         </div>
@@ -214,7 +214,7 @@ export default async function DashboardPage() {
             <p className="mt-4 text-gray-500">No cases yet.</p>
             <Link
               href="/case/new"
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm text-green-600 hover:text-green-800"
             >
               Start your first case
             </Link>
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
                 <Link
                   key={c.id}
                   href={`/case/${c.id}`}
-                  className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all"
+                  className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-green-300 hover:shadow-sm transition-all"
                 >
                   <div className="flex justify-between items-start">
                     <h3 className="text-sm font-medium text-gray-900">

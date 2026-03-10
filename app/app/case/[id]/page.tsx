@@ -7,9 +7,9 @@ import { getTenantContextForUser } from '@/lib/tenant/server';
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
-    'in progress': 'bg-blue-100 text-blue-800',
+    'in progress': 'bg-green-100 text-green-800',
     completed: 'bg-green-100 text-green-800',
-    underway: 'bg-blue-100 text-blue-800',
+    underway: 'bg-green-100 text-green-800',
     approved: 'bg-green-100 text-green-800',
     draft: 'bg-gray-100 text-gray-800',
   };
@@ -39,7 +39,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               step.num < currentStep
                 ? 'bg-green-100 text-green-800'
                 : step.num === currentStep
-                ? 'bg-blue-600 text-white'
+                ? 'bg-green-600 text-white'
                 : 'bg-gray-100 text-gray-400'
             }`}
           >
@@ -141,7 +141,7 @@ export default async function CaseDetailPage({
           <div className="mt-6">
             <Link
               href={`/step/${currentStep}/${id}`}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
             >
               Continue to Step {currentStep}
               <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,7 +161,7 @@ export default async function CaseDetailPage({
               href={`/case/${id}?tab=${t.id}`}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 tab === t.id
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-green-500 text-green-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
@@ -247,7 +247,7 @@ export default async function CaseDetailPage({
                       {task.status !== 'completed' && (
                         <Link
                           href={`/step/${taskMeta?.step_number || 2}/${id}`}
-                          className="text-sm text-blue-600 hover:text-blue-800"
+                          className="text-sm text-green-600 hover:text-green-800"
                         >
                           Go to task
                         </Link>
@@ -291,7 +291,7 @@ export default async function CaseDetailPage({
                       </div>
                       <Link
                         href={`/step/${docMeta?.document_role === 'draft' ? 3 : 4}/${id}`}
-                        className="text-sm text-blue-600 hover:text-blue-800"
+                        className="text-sm text-green-600 hover:text-green-800"
                       >
                         View
                       </Link>

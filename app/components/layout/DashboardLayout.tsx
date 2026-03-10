@@ -229,7 +229,7 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
                               </div>
                               <button
                                 onClick={() => markAsRead(notification.id)}
-                                className="ml-2 text-xs text-blue-600 hover:text-blue-800"
+                                className="ml-2 text-xs text-green-600 hover:text-green-800"
                               >
                                 Mark read
                               </button>

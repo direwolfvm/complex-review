@@ -45,7 +45,7 @@ export default function MarkdownEditor({
       .replace(/^\* (.*$)/gm, '<li class="ml-4">$1</li>')
       .replace(/^(\d+)\. (.*$)/gm, '<li class="ml-4">$2</li>')
       // Links
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-green-600 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>')
       // Paragraphs (double newlines)
       .replace(/\n\n/g, '</p><p class="my-2">')
       // Single newlines

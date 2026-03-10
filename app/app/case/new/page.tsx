@@ -136,7 +136,7 @@ export default function NewCasePage() {
             </div>
           </li>
           <li className="flex items-start">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-medium mr-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-800 rounded-full flex items-center justify-center text-sm font-medium mr-3">
               2
             </span>
             <div>
@@ -183,7 +183,7 @@ export default function NewCasePage() {
           <button
             onClick={handleCreateCase}
             disabled={loading}
-            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Start Case'}
           </button>
