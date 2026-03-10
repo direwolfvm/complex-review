@@ -88,10 +88,10 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-green-50 border border-green-100 rounded-xl p-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here&apos;s what needs your attention.</p>
+          <p className="text-green-900/80 mt-1">Welcome back! Here&apos;s what needs your attention.</p>
           {roleIds.length > 0 && (
             <div className="mt-2 flex items-center gap-2">
               <span className="text-sm text-gray-500">Your roles:</span>
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
 
       {/* My Tasks Section */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">My Tasks</h2>
+        <h2 className="text-lg font-semibold text-green-900 mb-4">My Tasks</h2>
         {tasks.length === 0 ? (
           <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,9 +133,9 @@ export default async function DashboardPage() {
             <p className="mt-4 text-gray-500">No pending tasks. You&apos;re all caught up!</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg border border-green-100 overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-green-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Task
@@ -164,7 +164,7 @@ export default async function DashboardPage() {
                   const meta = task.other as CaseEventWorkflowMeta;
 
                   return (
-                    <tr key={task.id} className="hover:bg-gray-50">
+                    <tr key={task.id} className="hover:bg-green-50/50">
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900">{task.name}</div>
                         <div className="text-sm text-gray-500">{task.description}</div>
@@ -201,7 +201,7 @@ export default async function DashboardPage() {
       {/* My Cases Section */}
       <section>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">My Cases</h2>
+          <h2 className="text-lg font-semibold text-green-900">My Cases</h2>
           <Link href="/cases" className="text-sm text-green-600 hover:text-green-800">
             View all
           </Link>
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
                 <Link
                   key={c.id}
                   href={`/case/${c.id}`}
-                  className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-green-300 hover:shadow-sm transition-all"
+                  className="block bg-white rounded-lg border border-green-100 p-4 hover:border-green-300 hover:shadow-sm transition-all"
                 >
                   <div className="flex justify-between items-start">
                     <h3 className="text-sm font-medium text-gray-900">

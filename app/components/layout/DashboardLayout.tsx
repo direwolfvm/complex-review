@@ -153,8 +153,8 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
                   href="/dashboard"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     pathname === '/dashboard'
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-green-100 text-green-900'
+                      : 'text-gray-600 hover:text-green-900 hover:bg-green-50'
                   }`}
                 >
                   Dashboard
@@ -163,8 +163,8 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
                   href="/cases"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     pathname.startsWith('/cases') || pathname.startsWith('/case')
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-green-100 text-green-900'
+                      : 'text-gray-600 hover:text-green-900 hover:bg-green-50'
                   }`}
                 >
                   Cases
