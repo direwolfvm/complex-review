@@ -1,520 +1,186 @@
-# External System API Integration Guide
+# External API integration
 
-This document describes how an external system can create environmental review applications through the Supabase API, matching the 5-step workflow implemented in the Review Works web application.
+This guide describes how an external system can create and advance Review Works cases through Supabase Auth and PostgREST while remaining compatible with the current tenant-aware application.
 
-## Overview
+## Important compatibility rules
 
-The Complex Review workflow consists of 5 steps with role-based access control:
+An integration must:
 
-| Step | Title | Required Role | Description |
-|------|-------|---------------|-------------|
-| 1 | User ID | Applicant | Authentication (handled automatically) |
-| 2 | Project Information | Applicant | Project details form |
-| 3 | Applicant Document | Applicant | Draft analysis document |
-| 4 | Environmental Review | Analyst | Analyst review and analysis |
-| 5 | Approval | Approver | Final approval gate |
+1. authenticate as a Supabase user or use a tightly controlled server-side service role;
+2. resolve the configured tenant by slug;
+3. include that tenant's `tenant_id` on every workflow record;
+4. use records belonging to the same tenant;
+5. preserve the JSON metadata shapes used by the UI;
+6. create tasks, notifications, documents, and decision payloads when advancing state; and
+7. obey RLS and participant-separation rules.
 
-To create an environmental review application programmatically, you need to:
+The current app assumes process model ID `1`, decision element IDs `1`–`5`, and role IDs Applicant `1`, Analyst `2`, and Approver `3`. Confirm that these IDs exist for the target tenant before integrating.
 
-1. Authenticate with Supabase to get a user ID and access token
-2. Create a `project` record with applicant metadata
-3. Create a `process_instance` record linked to the project
-4. Create `process_decision_payload` records for completed steps
-5. Create `case_event` records for tasks and workflow tracking
-6. Create `document` records for document steps (3 and 4)
+Direct REST writes are not transactional across the multi-record transitions shown below. For production integrations, prefer a reviewed database function, Edge Function, or backend service that validates inputs and performs each transition atomically.
 
-## Prerequisites
+## Base URLs and headers
 
-- **Supabase URL**: Your project URL (e.g., `https://your-project.supabase.co`)
-- **Supabase Anon Key**: The publishable anon key for API access
-- **User Credentials**: Email and password for the applicant account
-- **User Role Assignment**: The user must have the Applicant role (1) assigned in `user_assignments`
-
-## API Base URL
-
-All REST API endpoints follow this pattern:
-```
-{SUPABASE_URL}/rest/v1/{table_name}
+```text
+Auth: https://<project-ref>.supabase.co/auth/v1
+REST: https://<project-ref>.supabase.co/rest/v1
 ```
 
-## Authentication Headers
+Authenticated-user requests:
 
-All API requests require these headers:
 ```http
-apikey: {SUPABASE_ANON_KEY}
-Authorization: Bearer {ACCESS_TOKEN}
+apikey: <SUPABASE_ANON_KEY>
+Authorization: Bearer <USER_ACCESS_TOKEN>
 Content-Type: application/json
 Prefer: return=representation
 ```
 
----
+Server-to-server requests may use the service-role key as the bearer token only from a trusted backend. Never expose it to a browser, mobile bundle, log, or source repository. Service-role access bypasses RLS, so the integration must enforce tenant and user authorization itself.
 
-## Step 1: Authenticate with Supabase
-
-Sign in to get the user ID and access token.
-
-### Request
+Examples below use shell placeholders:
 
 ```bash
-curl -X POST "{SUPABASE_URL}/auth/v1/token?grant_type=password" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{
+SUPABASE_URL="https://example.supabase.co"
+SUPABASE_ANON_KEY="your-publishable-key"
+TENANT_SLUG="reviewworks"
+ACCESS_TOKEN="authenticated-user-jwt"
+USER_ID="authenticated-user-uuid"
+```
+
+## Authentication
+
+Sign in with email and password:
+
+```bash
+curl --request POST \
+  "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{
     "email": "applicant@example.com",
-    "password": "your-password"
+    "password": "correct-horse-battery-staple"
   }'
 ```
 
-### Response
+Store the returned `access_token`, `refresh_token`, and `user.id`. A valid Auth user must also have an active `user_tenant_membership` for the selected tenant.
 
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer",
-  "expires_in": 3600,
-  "refresh_token": "abc123...",
-  "user": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "email": "applicant@example.com",
-    "role": "authenticated",
-    ...
-  }
-}
-```
+## Resolve and validate tenant context
 
-**Important**: Save the `access_token` and `user.id` for subsequent requests.
-
----
-
-## Step 2: Create Project
-
-Create the project record with applicant metadata in the `other` JSONB field.
-
-### Request
+Resolve the active tenant:
 
 ```bash
-curl -X POST "{SUPABASE_URL}/rest/v1/project" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "title": "Highway 101 Environmental Review",
-    "description": "Environmental impact assessment for highway expansion",
-    "sector": "transportation",
-    "lead_agency": "Department of Transportation",
-    "type": "highway_expansion",
-    "location_lat": 37.7749,
-    "location_lon": -122.4194,
-    "location_text": "Highway 101, San Francisco, CA",
-    "current_status": "draft",
-    "other": {
-      "applicant_user_id": "{USER_ID}"
-    }
-  }'
+curl --get "${SUPABASE_URL}/rest/v1/tenant" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "select=id,slug,name,is_active" \
+  --data-urlencode "slug=eq.${TENANT_SLUG}" \
+  --data-urlencode "is_active=eq.true"
 ```
 
-### Project Fields
+Save the returned UUID as `TENANT_ID`.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `title` | text | Yes | Descriptive name of the project |
-| `description` | text | No | Summary of the project's goals and scope |
-| `sector` | text | No | High-level category (energy, transportation, etc.) |
-| `lead_agency` | text | No | Agency supervising the project |
-| `type` | text | No | Classification sub-type |
-| `location_lat` | float | No | Latitude of project center |
-| `location_lon` | float | No | Longitude of project center |
-| `location_text` | text | No | Text description of location |
-| `current_status` | text | Yes | Must be `"draft"` for new applications |
-| `other` | jsonb | Yes | Workflow metadata (see below) |
-
-### Project `other` Field Schema (ProjectWorkflowMeta)
-
-```json
-{
-  "applicant_user_id": "string (required) - UUID of the case creator",
-  "analyst_user_id": "string (optional) - assigned when step 4 starts",
-  "approver_user_id": "string (optional) - assigned when step 5 starts"
-}
-```
-
-### Response
-
-```json
-{
-  "id": 123,
-  "created_at": "2026-01-15T10:30:00.000Z",
-  "title": "Highway 101 Environmental Review",
-  "current_status": "draft",
-  "other": {
-    "applicant_user_id": "550e8400-e29b-41d4-a716-446655440000"
-  },
-  ...
-}
-```
-
-**Save the `id` as `PROJECT_ID` for the next steps.**
-
----
-
-## Step 3: Create Process Instance
-
-Create the process instance linked to the project with workflow state metadata.
-
-### Request
+Validate the authenticated user's membership:
 
 ```bash
-curl -X POST "{SUPABASE_URL}/rest/v1/process_instance" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_project_id": {PROJECT_ID},
-    "process_model": 1,
-    "status": "underway",
-    "stage": "Step 2: Project Information",
-    "start_date": "2026-01-15",
-    "other": {
-      "current_step": 2,
-      "workflow_status": "draft"
-    }
-  }'
+curl --get "${SUPABASE_URL}/rest/v1/user_tenant_membership" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "select=tenant_id,role,is_active" \
+  --data-urlencode "tenant_id=eq.${TENANT_ID}" \
+  --data-urlencode "auth_provider=eq.supabase" \
+  --data-urlencode "auth_user_id=eq.${USER_ID}" \
+  --data-urlencode "is_active=eq.true"
 ```
 
-### Process Instance Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `parent_project_id` | bigint | Yes | Reference to the project ID |
-| `process_model` | bigint | Yes | Process model ID (use `1`) |
-| `status` | text | Yes | `"underway"` for active processes |
-| `stage` | text | No | Human-readable stage description |
-| `start_date` | date | No | Application start date |
-| `other` | jsonb | Yes | Workflow state metadata |
-
-### Process Instance `other` Field Schema (ProcessInstanceWorkflowMeta)
-
-```json
-{
-  "current_step": 2,
-  "workflow_status": "draft | in_progress | pending_approval | approved"
-}
-```
-
-### Response
-
-```json
-{
-  "id": 456,
-  "created_at": "2026-01-15T10:31:00.000Z",
-  "parent_project_id": 123,
-  "process_model": 1,
-  "status": "underway",
-  "stage": "Step 2: Project Information",
-  "other": {
-    "current_step": 2,
-    "workflow_status": "draft"
-  },
-  ...
-}
-```
-
-**Save the `id` as `PROCESS_INSTANCE_ID` for the next steps.**
-
----
-
-## Step 4: Create Decision Payloads
-
-The workflow has 5 decision elements. Create payloads for completed steps:
-
-| Element ID | Title | Role | Description |
-|------------|-------|------|-------------|
-| 1 | User ID | Applicant | Authentication data |
-| 2 | Project Information | Applicant | Project form data |
-| 3 | Analysis Document | Applicant | Applicant's draft document |
-| 4 | Environmental Review | Analyst | Analyst's review document |
-| 5 | Approval | Approver | Final approval decision |
-
-### Create Authentication Payload (Element 1)
+Validate required configuration:
 
 ```bash
-curl -X POST "{SUPABASE_URL}/rest/v1/process_decision_payload" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "process_decision_element": 1,
-    "process": {PROCESS_INSTANCE_ID},
-    "project": {PROJECT_ID},
-    "result": "completed",
-    "result_bool": true,
-    "evaluation_data": {
-      "user_id": "{USER_ID}",
-      "authenticated_at": "2026-01-15T10:30:00.000Z"
-    }
-  }'
+curl --get "${SUPABASE_URL}/rest/v1/decision_element" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "select=id,title,form_data,other" \
+  --data-urlencode "tenant_id=eq.${TENANT_ID}" \
+  --data-urlencode "id=in.(1,2,3,4,5)" \
+  --data-urlencode "order=id.asc"
 ```
 
-### Payload Fields
+## Create a case
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `process_decision_element` | bigint | Yes | Decision element ID (1-5) |
-| `process` | bigint | Yes | Process instance ID |
-| `project` | bigint | Yes | Project ID |
-| `result` | text | No | Result description |
-| `result_bool` | boolean | No | Pass/fail indicator |
-| `evaluation_data` | jsonb | Yes | Form/decision data |
+Case creation produces four related records.
 
----
-
-## Step 5: Create Initial Task
-
-Create the task for the applicant to complete step 2.
-
-### Request
+### 1. Project
 
 ```bash
-curl -X POST "{SUPABASE_URL}/rest/v1/case_event" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_process_id": {PROCESS_INSTANCE_ID},
-    "name": "Complete Project Information",
-    "description": "Fill out the project information form to proceed",
-    "type": "task",
-    "tier": 2,
-    "status": "pending",
-    "assigned_entity": "{USER_ID}",
-    "other": {
-      "step_number": 2,
-      "decision_element_id": 2,
-      "assigned_user_id": "{USER_ID}",
-      "assigned_role_id": 1,
-      "task_type": "form"
-    }
-  }'
-```
-
-### Case Event Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `parent_process_id` | bigint | Yes | Process instance ID |
-| `name` | text | Yes | Task/event name |
-| `description` | text | No | Detailed description |
-| `type` | text | Yes | `"task"`, `"notification"`, or event type |
-| `tier` | integer | No | Step number (for tasks) |
-| `status` | text | No | `"pending"`, `"in progress"`, `"completed"` |
-| `assigned_entity` | text | No | User ID for task assignment |
-| `outcome` | text | No | Result (for completed events) |
-| `other` | jsonb | No | Workflow metadata |
-
-### Task `other` Field Schema (CaseEventWorkflowMeta)
-
-```json
-{
-  "step_number": 2,
-  "decision_element_id": 2,
-  "assigned_user_id": "user-uuid",
-  "assigned_role_id": 1,
-  "task_type": "form | document | approval",
-  "completed_by": "user-uuid (when completed)",
-  "completed_at": "ISO timestamp (when completed)",
-  "revision_requested": false,
-  "revision_comments": "string (for revisions)"
-}
-```
-
-### Task Types by Step
-
-| Step | Task Type | Description |
-|------|-----------|-------------|
-| 2 | `form` | RJSF form submission |
-| 3 | `document` | Markdown document editing |
-| 4 | `document` | Markdown document editing |
-| 5 | `approval` | Approve/reject decision |
-
----
-
-## Step 6: Create Documents (For Steps 3 and 4)
-
-When advancing to document steps, create document records.
-
-### Create Draft Document (Step 3)
-
-```bash
-curl -X POST "{SUPABASE_URL}/rest/v1/document" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_process_id": {PROCESS_INSTANCE_ID},
-    "title": "Applicant Draft Document",
-    "document_type": "draft",
-    "status": "draft",
-    "prepared_by": "{USER_ID}",
-    "other": {
-      "document_role": "draft",
-      "created_by_user_id": "{USER_ID}",
-      "markdown_content": "# Project Analysis Document\n\n## Executive Summary\n[Provide overview]\n\n## Project Description\n[Describe the project]\n\n## Environmental Considerations\n[List environmental factors]"
-    }
-  }'
-```
-
-### Create Analysis Document (Step 4)
-
-```bash
-curl -X POST "{SUPABASE_URL}/rest/v1/document" \
-  -H "apikey: {SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_process_id": {PROCESS_INSTANCE_ID},
-    "title": "Environmental Analysis",
-    "document_type": "analysis",
-    "status": "draft",
-    "prepared_by": "{ANALYST_USER_ID}",
-    "related_document_id": {DRAFT_DOCUMENT_ID},
-    "other": {
-      "document_role": "analysis",
-      "created_by_user_id": "{ANALYST_USER_ID}",
-      "markdown_content": "# Environmental Review Analysis\n\n## Review Summary\n[Summarize findings]\n\n## Compliance Assessment\n[Assess compliance]\n\n## Recommendations\n[Provide recommendations]"
-    }
-  }'
-```
-
-### Document Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `parent_process_id` | bigint | Yes | Process instance ID |
-| `title` | text | Yes | Document title |
-| `document_type` | text | Yes | `"draft"` or `"analysis"` |
-| `status` | text | Yes | `"draft"` or `"submitted"` |
-| `prepared_by` | text | No | User ID who created it |
-| `related_document_id` | bigint | No | Link to related document |
-| `other` | jsonb | Yes | Document metadata |
-
-### Document `other` Field Schema (DocumentWorkflowMeta)
-
-```json
-{
-  "document_role": "draft | analysis",
-  "created_by_user_id": "user-uuid",
-  "last_edited_by_user_id": "user-uuid",
-  "markdown_content": "# Document content in markdown format"
-}
-```
-
----
-
-## Complete Workflow Example
-
-Here's a complete example that creates an application through Step 2:
-
-```bash
-#!/bin/bash
-
-# Configuration
-SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_ANON_KEY="your-anon-key"
-EMAIL="applicant@example.com"
-PASSWORD="secure-password"
-
-# Step 1: Authenticate
-echo "Authenticating..."
-AUTH_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\": \"${EMAIL}\", \"password\": \"${PASSWORD}\"}")
-
-ACCESS_TOKEN=$(echo $AUTH_RESPONSE | jq -r '.access_token')
-USER_ID=$(echo $AUTH_RESPONSE | jq -r '.user.id')
-
-if [ "$ACCESS_TOKEN" == "null" ]; then
-  echo "Authentication failed"
-  exit 1
-fi
-
-echo "Authenticated as user: ${USER_ID}"
-
-# Step 2: Create Project
-echo "Creating project..."
-PROJECT_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/project" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{
-    \"title\": \"Highway 101 Environmental Review\",
-    \"description\": \"Environmental impact assessment for highway expansion\",
-    \"sector\": \"transportation\",
+curl --request POST "${SUPABASE_URL}/rest/v1/project" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --header "Prefer: return=representation" \
+  --data "{
+    \"tenant_id\": \"${TENANT_ID}\",
+    \"title\": \"New Project\",
     \"current_status\": \"draft\",
     \"other\": {
       \"applicant_user_id\": \"${USER_ID}\"
     }
-  }")
+  }"
+```
 
-PROJECT_ID=$(echo $PROJECT_RESPONSE | jq -r '.[0].id // .id')
-echo "Created project: ${PROJECT_ID}"
+Save the returned numeric ID as `PROJECT_ID`.
 
-# Step 3: Create Process Instance
-echo "Creating process instance..."
-PROCESS_RESPONSE=$(curl -s -X POST "${SUPABASE_URL}/rest/v1/process_instance" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{
+The underlying project table supports fields including:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `title` | text | Project name |
+| `description` | text | Project summary |
+| `sector` | text | Sector/category |
+| `lead_agency` | text | Lead organization |
+| `participating_agencies` | text | Participating organizations |
+| `type` | text | Project type |
+| `location_lat`, `location_lon` | number | Coordinates |
+| `location_text` | text | Human-readable location |
+| `funding` | text | Funding information |
+| `start_date` | date | Planned start date |
+| `sponsor` | text | Sponsor |
+| `sponsor_contact` | JSON | Contact details |
+| `current_status` | text | Starts as `draft`; approval sets `approved` |
+
+The current Step 2 component maps `title`, `description`, `sector`, `lead_agency`, and `location_text` to project columns. It stores the complete submission, including other form values, in `other.form_data`. An external integration may populate other project columns when permitted by its schema and policies.
+
+### 2. Process instance
+
+```bash
+curl --request POST "${SUPABASE_URL}/rest/v1/process_instance" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --header "Prefer: return=representation" \
+  --data "{
+    \"tenant_id\": \"${TENANT_ID}\",
     \"parent_project_id\": ${PROJECT_ID},
     \"process_model\": 1,
     \"status\": \"underway\",
     \"stage\": \"Step 2: Project Information\",
-    \"start_date\": \"$(date +%Y-%m-%d)\",
+    \"start_date\": \"2026-07-29\",
     \"other\": {
       \"current_step\": 2,
       \"workflow_status\": \"draft\"
     }
-  }")
-
-PROCESS_ID=$(echo $PROCESS_RESPONSE | jq -r '.[0].id // .id')
-echo "Created process instance: ${PROCESS_ID}"
-
-# Step 4: Create Decision Payload for Step 1 (Auth)
-echo "Creating auth decision payload..."
-curl -s -X POST "${SUPABASE_URL}/rest/v1/process_decision_payload" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{
-    \"process_decision_element\": 1,
-    \"process\": ${PROCESS_ID},
-    \"project\": ${PROJECT_ID},
-    \"result\": \"completed\",
-    \"result_bool\": true,
-    \"evaluation_data\": {
-      \"user_id\": \"${USER_ID}\",
-      \"authenticated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
-    }
   }"
+```
 
-# Step 5: Create Initial Task for Step 2
-echo "Creating step 2 task..."
-curl -s -X POST "${SUPABASE_URL}/rest/v1/case_event" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{
+Save the returned numeric ID as `PROCESS_ID`.
+
+### 3. Step 2 task
+
+```bash
+curl --request POST "${SUPABASE_URL}/rest/v1/case_event" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --header "Prefer: return=representation" \
+  --data "{
+    \"tenant_id\": \"${TENANT_ID}\",
     \"parent_process_id\": ${PROCESS_ID},
     \"name\": \"Complete Project Information\",
     \"description\": \"Fill out the project information form to proceed\",
@@ -530,216 +196,362 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/case_event" \
       \"task_type\": \"form\"
     }
   }"
-
-echo ""
-echo "Done! Created environmental review application:"
-echo "  Project ID: ${PROJECT_ID}"
-echo "  Process Instance ID: ${PROCESS_ID}"
-echo "  Dashboard URL: https://your-app.com/case/${PROCESS_ID}"
 ```
 
----
+Save the returned ID as `TASK_ID`.
 
-## Advancing Through the Workflow
-
-### Complete Step 2 (Project Information)
-
-When the applicant completes the project information form:
+### 4. Step 1 authentication payload
 
 ```bash
-# 1. Create decision payload for step 2
-curl -X POST "${SUPABASE_URL}/rest/v1/process_decision_payload" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "process_decision_element": 2,
-    "process": {PROCESS_INSTANCE_ID},
-    "project": {PROJECT_ID},
-    "result": "completed",
-    "result_bool": true,
-    "evaluation_data": {
-      "title": "Highway 101 Environmental Review",
-      "description": "Environmental impact assessment",
-      "sector": "transportation",
-      "type": "highway_expansion",
-      "location_text": "Highway 101, San Francisco, CA"
+curl --request POST "${SUPABASE_URL}/rest/v1/process_decision_payload" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --data "{
+    \"tenant_id\": \"${TENANT_ID}\",
+    \"process_decision_element\": 1,
+    \"process\": ${PROCESS_ID},
+    \"project\": ${PROJECT_ID},
+    \"result\": \"completed\",
+    \"result_bool\": true,
+    \"evaluation_data\": {
+      \"user_id\": \"${USER_ID}\",
+      \"authenticated_at\": \"2026-07-29T16:00:00Z\"
     }
-  }'
-
-# 2. Mark step 2 task as completed
-curl -X PATCH "${SUPABASE_URL}/rest/v1/case_event?id=eq.{TASK_ID}" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "completed",
-    "outcome": "completed"
-  }'
-
-# 3. Update process instance to step 3
-curl -X PATCH "${SUPABASE_URL}/rest/v1/process_instance?id=eq.{PROCESS_INSTANCE_ID}" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "stage": "Step 3: Applicant Document",
-    "other": {
-      "current_step": 3,
-      "workflow_status": "in_progress"
-    }
-  }'
-
-# 4. Create draft document for step 3
-curl -X POST "${SUPABASE_URL}/rest/v1/document" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_process_id": {PROCESS_INSTANCE_ID},
-    "title": "Applicant Draft Document",
-    "document_type": "draft",
-    "status": "draft",
-    "prepared_by": "{USER_ID}",
-    "other": {
-      "document_role": "draft",
-      "created_by_user_id": "{USER_ID}",
-      "markdown_content": "# Project Analysis Document\n\n## Executive Summary\n..."
-    }
-  }'
-
-# 5. Create task for step 3
-curl -X POST "${SUPABASE_URL}/rest/v1/case_event" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_process_id": {PROCESS_INSTANCE_ID},
-    "name": "Complete Analysis Document",
-    "description": "Draft your project analysis document",
-    "type": "task",
-    "tier": 3,
-    "status": "pending",
-    "assigned_entity": "{USER_ID}",
-    "other": {
-      "step_number": 3,
-      "decision_element_id": 3,
-      "assigned_user_id": "{USER_ID}",
-      "assigned_role_id": 1,
-      "task_type": "document"
-    }
-  }'
+  }"
 ```
 
----
+At this point the case is compatible with the app and opens at `/step/2/<PROCESS_ID>`.
 
-## Role-Based Access Control
+## Complete Step 2
 
-Tasks are automatically accessible to users with the matching role:
+Use decision element `2`'s `form_data` as the JSON Schema contract.
 
-| Step | Required Role | Access Rule |
-|------|---------------|-------------|
-| 1, 2, 3 | Applicant (1) | Only the case creator |
-| 4 | Analyst (2) | Any user with Analyst role (except case creator) |
-| 5 | Approver (3) | Any user with Approver role (except case creator) |
+The transition must:
 
-### User Role Assignment
+1. update project columns and merge the complete submission into `project.other.form_data`;
+2. create a Step 2 decision payload;
+3. complete the Step 2 task;
+4. update the process to Step 3;
+5. create a draft applicant document; and
+6. create the Step 3 task.
 
-Users must have roles assigned in the `user_assignments` table:
-
-```bash
-# Assign Applicant role to a user
-curl -X POST "${SUPABASE_URL}/rest/v1/user_assignments" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer {SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "{USER_ID}",
-    "user_role": 1
-  }'
-```
-
-| Role ID | Role Name | Responsibilities |
-|---------|-----------|------------------|
-| 1 | Applicant | Create cases, complete steps 2-3 |
-| 2 | Analyst | Review and analyze (step 4) |
-| 3 | Approver | Final approval (step 5) |
-
----
-
-## Error Handling
-
-Supabase REST API returns standard HTTP status codes:
-
-| Status | Meaning |
-|--------|---------|
-| 200 | Success (for PATCH) |
-| 201 | Created (for POST) |
-| 400 | Bad Request - check your JSON payload |
-| 401 | Unauthorized - check your access token |
-| 403 | Forbidden - RLS policy violation |
-| 404 | Not Found - resource doesn't exist |
-| 409 | Conflict - duplicate or constraint violation |
-
-Error responses include a message:
+Decision payload:
 
 ```json
 {
-  "code": "PGRST204",
-  "message": "Column 'invalid_field' does not exist",
-  "details": null,
-  "hint": null
+  "tenant_id": "<TENANT_ID>",
+  "process_decision_element": 2,
+  "process": 456,
+  "project": 123,
+  "result": "completed",
+  "result_bool": true,
+  "evaluation_data": {
+    "title": "Highway 101 Environmental Review",
+    "sector": "transportation"
+  }
 }
 ```
 
----
+Completed task patch:
 
-## Row-Level Security (RLS)
-
-The database has RLS policies that may restrict access:
-
-- Users can only access projects where they are the applicant, analyst, or approver
-- Process instances are accessible through their parent project
-- Tasks are accessible to assigned users or users with the matching role
-- Documents are accessible through their parent process
-
-Ensure your requests use a valid access token for a user with appropriate permissions.
-
----
-
-## Notifications
-
-Create notification events to alert users of pending tasks:
-
-```bash
-curl -X POST "${SUPABASE_URL}/rest/v1/case_event" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" \
-  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d '{
-    "parent_process_id": {PROCESS_INSTANCE_ID},
-    "name": "New Case Assigned",
-    "description": "You have been assigned to review \"Highway 101 Environmental Review\"",
-    "type": "notification",
-    "status": "pending",
-    "assigned_entity": "{TARGET_USER_ID}",
-    "other": {
-      "notification_type": "assignment",
-      "project_id": {PROJECT_ID},
-      "read": false
-    }
-  }'
+```json
+{
+  "status": "completed",
+  "outcome": "completed",
+  "other": {
+    "step_number": 2,
+    "decision_element_id": 2,
+    "assigned_user_id": "<USER_ID>",
+    "assigned_role_id": 1,
+    "task_type": "form",
+    "completed_by": "<USER_ID>",
+    "completed_at": "2026-07-29T16:10:00Z"
+  }
+}
 ```
 
-### Notification Types
+Process patch:
 
-| Type | When to Use |
-|------|-------------|
-| `assignment` | User assigned to a new task |
-| `approval_required` | Case ready for approval |
-| `revision_requested` | Approver requests changes |
-| `approved` | Case has been approved |
+```json
+{
+  "stage": "Step 3: Applicant Document",
+  "other": {
+    "current_step": 3,
+    "workflow_status": "in_progress"
+  }
+}
+```
+
+Applicant document:
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "parent_process_id": 456,
+  "title": "Applicant Draft Document",
+  "type": "applicant_draft",
+  "status": "draft",
+  "other": {
+    "document_role": "draft",
+    "created_by_user_id": "<USER_ID>",
+    "markdown_content": ""
+  }
+}
+```
+
+Step 3 task metadata uses `step_number: 3`, `decision_element_id: 3`, `assigned_role_id: 1`, and `task_type: "document"`.
+
+## Complete Step 3 and assign an analyst
+
+Select an eligible analyst from `user_assignments` where:
+
+- `tenant_id` is the current tenant;
+- `user_role` is `2`; and
+- `user_id` is not the applicant.
+
+Store the selected UUID in `project.other.analyst_user_id`.
+
+Then:
+
+- set the applicant document status to `submitted`;
+- create the Step 3 decision payload with its `document_id`;
+- complete the Step 3 task;
+- update the process to Step 4 and `in_progress`;
+- create an analysis document with `document_role: "analysis"`;
+- create a Step 4 task assigned to the analyst; and
+- create a pending notification assigned to the analyst.
+
+Example notification:
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "parent_process_id": 456,
+  "name": "New Case Assigned",
+  "description": "You have been assigned to review \"Highway 101 Environmental Review\"",
+  "type": "notification",
+  "status": "pending",
+  "assigned_entity": "<ANALYST_USER_ID>",
+  "other": {
+    "notification_type": "assignment",
+    "project_id": 123,
+    "read": false
+  }
+}
+```
+
+## Complete Step 4 and assign an approver
+
+Select an eligible approver from tenant role `3`, excluding both the applicant and analyst. Store the selected UUID in `project.other.approver_user_id`.
+
+Then:
+
+- set the analysis document status to `submitted`;
+- create a Step 4 decision payload with `document_id`, `submitted_at`, and `is_revision`;
+- complete the Step 4 task;
+- update the process to Step 5 and `pending_approval`;
+- create a Step 5 approval task; and
+- notify the approver.
+
+Step 5 task metadata:
+
+```json
+{
+  "step_number": 5,
+  "decision_element_id": 5,
+  "assigned_user_id": "<APPROVER_USER_ID>",
+  "assigned_role_id": 3,
+  "task_type": "approval"
+}
+```
+
+## Approve
+
+Approval creates a Step 5 decision payload:
+
+```json
+{
+  "tenant_id": "<TENANT_ID>",
+  "process_decision_element": 5,
+  "process": 456,
+  "project": 123,
+  "result": "approved",
+  "result_bool": true,
+  "result_notes": "Optional comments",
+  "evaluation_data": {
+    "approver_id": "<APPROVER_USER_ID>",
+    "approved_at": "2026-07-29T18:00:00Z"
+  }
+}
+```
+
+Complete the approval task with outcome `approved`, then patch:
+
+```json
+{
+  "process_instance": {
+    "status": "completed",
+    "stage": "Approved",
+    "outcome": "approved",
+    "complete_date": "2026-07-29",
+    "other": {
+      "current_step": 6,
+      "workflow_status": "approved"
+    }
+  },
+  "project": {
+    "current_status": "approved"
+  }
+}
+```
+
+Finally, create a `Case Approved` notification for the analyst.
+
+## Request changes
+
+Comments are required for a change request.
+
+1. Complete the Step 5 task with outcome `changes_requested` and store `approval_comments`.
+2. Create a Step 5 decision payload with `result: "changes_requested"` and `result_bool: false`.
+3. Patch the process to Step 4, `in_progress`, and stage `Step 4: Analyst Review (Revision)`.
+4. Create a new Step 4 task assigned to the existing analyst.
+5. Notify the analyst.
+
+Revision task metadata:
+
+```json
+{
+  "step_number": 4,
+  "decision_element_id": 4,
+  "assigned_user_id": "<ANALYST_USER_ID>",
+  "assigned_role_id": 2,
+  "task_type": "document",
+  "revision_requested": true,
+  "revision_comments": "Explain the affected-resource conclusion.",
+  "revision_requested_by": "<APPROVER_USER_ID>"
+}
+```
+
+Do not create a second analysis document for the normal revision loop; the app reuses the existing analysis document.
+
+## Metadata reference
+
+### Process state
+
+```json
+{
+  "current_step": 2,
+  "workflow_status": "draft"
+}
+```
+
+Valid app states are `draft`, `in_progress`, `pending_approval`, `approved`, and the reserved `rejected` type value. The active UI uses change requests rather than a terminal rejected action.
+
+### Task state
+
+```json
+{
+  "step_number": 2,
+  "decision_element_id": 2,
+  "assigned_user_id": "uuid",
+  "assigned_role_id": 1,
+  "task_type": "form",
+  "completed_by": "uuid",
+  "completed_at": "ISO-8601 timestamp"
+}
+```
+
+Task types are `form`, `document`, and `approval`. Task statuses are `pending`, `in progress`, and `completed`.
+
+### Document state
+
+```json
+{
+  "document_role": "draft",
+  "created_by_user_id": "uuid",
+  "last_edited_by_user_id": "uuid",
+  "markdown_content": "# Content",
+  "hedgedoc_note_id": "optional",
+  "hedgedoc_url": "optional"
+}
+```
+
+Document roles are `draft` and `analysis`; statuses are `draft` and `submitted`.
+
+## Querying cases
+
+Fetch a process with its project:
+
+```bash
+curl --get "${SUPABASE_URL}/rest/v1/process_instance" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "select=*,project:parent_project_id(*)" \
+  --data-urlencode "tenant_id=eq.${TENANT_ID}" \
+  --data-urlencode "id=eq.${PROCESS_ID}"
+```
+
+Fetch pending work directly assigned to a user:
+
+```bash
+curl --get "${SUPABASE_URL}/rest/v1/case_event" \
+  --header "apikey: ${SUPABASE_ANON_KEY}" \
+  --header "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "select=*" \
+  --data-urlencode "tenant_id=eq.${TENANT_ID}" \
+  --data-urlencode "type=eq.task" \
+  --data-urlencode "assigned_entity=eq.${USER_ID}" \
+  --data-urlencode "status=in.(pending,in progress)"
+```
+
+Always combine a record ID filter with `tenant_id`, including PATCH and DELETE requests:
+
+```text
+/rest/v1/case_event?id=eq.<TASK_ID>&tenant_id=eq.<TENANT_ID>
+```
+
+## Idempotency and consistency
+
+PostgREST inserts do not automatically prevent duplicate step submissions. Integrations should:
+
+- assign an external idempotency key in metadata or a dedicated constrained column;
+- check for an existing payload/task before retrying;
+- use optimistic concurrency or a database function for transitions;
+- never overwrite participant or document metadata without merging existing keys;
+- validate that referenced records share the same `tenant_id`; and
+- record the acting user and timestamp.
+
+After each transition, verify:
+
+- exactly one active task exists for the current step;
+- `process_instance.other.current_step` matches `stage`;
+- the expected document exists;
+- assigned users have the correct tenant-scoped role;
+- completed tasks have completion metadata; and
+- a decision payload records the action.
+
+## Errors and security
+
+| HTTP status | Typical cause |
+| --- | --- |
+| `400` | Invalid JSON, column, filter, or transition data |
+| `401` | Missing, invalid, or expired access token |
+| `403` | RLS denied the operation or membership is insufficient |
+| `404` / empty array | Record is absent or hidden by RLS/tenant filtering |
+| `409` | Constraint or idempotency conflict |
+| `422` | Auth request could not be processed |
+
+Security requirements:
+
+- enforce RLS on all exposed tables;
+- derive tenant access from active membership, not a client-provided tenant ID alone;
+- never use a service-role key in client code;
+- validate role separation during assignment;
+- allow only expected JSON metadata fields and sizes;
+- protect document content as potentially sensitive case data; and
+- retain audit records for every state transition.
+
+## App-managed alternative
+
+If users can complete the workflow in the Review Works UI, an integration only needs to create the four initial case records. The UI will manage subsequent documents, tasks, notifications, payloads, and state changes. This reduces the integration surface and is preferable to reproducing every transition externally.

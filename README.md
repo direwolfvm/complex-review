@@ -1,352 +1,166 @@
-# Review Works - Environmental Permit Workflow System
+# Review Works
 
-A case and task management application built with Next.js, Supabase, and TypeScript implementing a 5-step environmental review workflow.
+Review Works is a tenant-aware case and task management application for a five-step environmental review workflow. It combines a Next.js user interface with Supabase authentication and PostgreSQL data, role-based task handoffs, document drafting, approval and revision loops, notifications, and an optional embedded HedgeDoc editor.
 
-## Overview
+## What the application does
 
-This application implements a workflow for environmental permit reviews with the following steps:
+The workflow begins after authentication:
 
-1. **Authentication** - User signs in via Supabase Auth
-2. **Project Information** - Applicant fills out project details using dynamic RJSF form
-3. **Applicant Document** - Applicant drafts their project analysis document
-4. **Analyst Review** - Analyst reviews submission and produces environmental analysis
-5. **Approval Gate** - Approver approves or requests changes (loops back to step 4)
+| Step | Activity | Primary role | Result |
+| --- | --- | --- | --- |
+| 1 | Authenticate | System / Applicant | A Supabase session and authentication payload |
+| 2 | Enter project information | Applicant | Project fields and a decision payload |
+| 3 | Draft the applicant document | Applicant | A submitted draft document |
+| 4 | Prepare the environmental analysis | Analyst | A submitted analysis document |
+| 5 | Approve or request changes | Approver | A completed case or a new Step 4 revision task |
 
-## Tech Stack
+The app assigns the analyst and approver from tenant-scoped role assignments. The applicant cannot review their own work, and the analyst cannot approve their own analysis. An approval completes both the process and project. A change request stores the approver's feedback, notifies the analyst, and returns the case to Step 4.
 
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
-- **Styling**: Tailwind CSS
-- **Forms**: react-jsonschema-form (RJSF)
-- **Document Editing**: Internal Markdown editor (with optional HedgeDoc integration)
+Additional user-facing features include:
+
+- Public Home, About, and Developer Resources pages
+- Email/password sign-up, sign-in, confirmation callback, and sign-out
+- A dashboard containing active tasks, recent cases, role badges, and notifications
+- A tenant-filtered case list and a case detail timeline
+- JSON Schema forms rendered with React JSON Schema Form (RJSF)
+- Internal Markdown editing, preview, and draft saving
+- Optional HedgeDoc note creation and embedded collaborative editing
+- An OAuth consent endpoint for Supabase OAuth authorization flows
+- Runtime configuration suitable for container deployments
+
+See [User guide](docs/USER_GUIDE.md) for the complete product behavior.
+
+## Architecture at a glance
+
+- **Web:** Next.js 14 App Router, React 18, TypeScript
+- **UI:** Tailwind CSS
+- **Auth and data:** Supabase Auth, PostgREST, and PostgreSQL
+- **Forms:** RJSF with AJV 8 validation
+- **Documents:** application-managed Markdown or optional HedgeDoc
+- **Deployment:** standalone Next.js container; Cloud Run, Cloud Build, and Cloud Foundry assets are included
+- **Isolation:** one configured tenant slug per deployed app instance; tenant membership gates server-rendered application pages and `tenant_id` scopes runtime records
+
+The current application expects the **canonical tenant-aware Supabase schema**. The SQL and CSV files in `database-schema/` are legacy PIC v1.2.0 bootstrap/reference assets and do not by themselves create the canonical tenant and membership tables.
+
+See [Architecture](docs/ARCHITECTURE.md) for routes, components, data ownership, authorization boundaries, and workflow state.
 
 ## Prerequisites
 
-- Node.js 18+
-- npm or yarn
-- Supabase project with existing PIC schema
+- Node.js 18 or newer (Node.js 20 is recommended)
+- npm
+- A Supabase project containing the canonical tenant-aware schema
+- A tenant whose slug matches the application configuration
+- Seeded Review Works process model, decision elements `1` through `5`, and roles `1` through `3`
+- An active `user_tenant_membership` for each user
+- A tenant-scoped `user_assignments` row for each workflow role a user can perform
+- Optional: a HedgeDoc instance configured to allow embedding from the Review Works origin
 
-## Environment Variables
+## Local setup
 
-Create a `.env.local` file in the project root:
-
-```bash
-# Supabase Configuration (Required)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-
-# Supabase Service Role (for server-side operations)
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# HedgeDoc Configuration (Optional - falls back to internal editor)
-HEDGEDOC_BASE_URL=https://your-hedgedoc-instance.com
-HEDGEDOC_API_TOKEN=your-hedgedoc-api-token
-
-# Application URL
-NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
-```
-
-## Installation
+The Next.js package lives in `app/`.
 
 ```bash
-# Clone the repository
 git clone <repository-url>
-cd review-works
-
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your values
-
-# Run development server
+cd complex-review
+cp .env.example app/.env.local
+cd app
+npm ci
 npm run dev
 ```
 
-## Local Development
+Open `http://localhost:3000`.
+
+The root `.env.example` is the configuration reference. The app reads `app/.env.local` during local Next.js development. Never commit a populated environment file or a Supabase service-role key.
+
+## Configuration
+
+| Variable | Required | Scope | Purpose |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Browser and server | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Browser and server | Supabase anonymous/publishable key |
+| `NEXT_PUBLIC_TENANT_SLUG` | Recommended | Browser and server | Tenant selected by browser-side queries; defaults to `reviewworks` |
+| `CANONICAL_TENANT_SLUG` | Recommended | Server | Tenant selected by server-side membership checks; falls back to `NEXT_PUBLIC_TENANT_SLUG`, then `reviewworks` |
+| `NEXT_PUBLIC_APP_BASE_URL` | Production | Browser and server | Public application origin used for redirects and deployment configuration |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server only | Reserved for server-side administrative operations; normal app flows use the user session |
+| `HEDGEDOC_BASE_URL` | Optional | Server | Enables HedgeDoc integration and provides the iframe origin |
+| `HEDGEDOC_API_TOKEN` | Optional | Server only | Bearer token used when creating or reading HedgeDoc notes |
+
+`NEXT_PUBLIC_TENANT_SLUG` and `CANONICAL_TENANT_SLUG` should resolve to the same active tenant. Public variables are exposed to the browser; do not put secrets in them.
+
+## Database requirements
+
+The application reads or writes these tenant-scoped tables:
+
+- `tenant` and `user_tenant_membership` for tenant resolution and access
+- `user_role` and `user_assignments` for workflow role assignment
+- `project` and `process_instance` for case state
+- `process_model` and `decision_element` for workflow configuration and the Step 2 form schema
+- `case_event` for tasks, notifications, and completion metadata
+- `document` for applicant and analyst documents
+- `process_decision_payload` for submitted form data and decisions
+
+Runtime case, task, document, and payload operations are scoped with the configured `tenant_id`. Row Level Security should enforce the same boundary in the database. Client-side filtering is not a substitute for RLS.
+
+For schema history and the limitations of the bundled SQL, see [Database schema notes](database-schema/README.md). For REST integrations, see [API integration guide](app/docs/API_INTEGRATION.md).
+
+## Commands
+
+Run commands from `app/`:
 
 ```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm run start
-
-# Run linter
-npm run lint
+npm run dev       # development server
+npm run build     # production build
+npm run start     # start the production server
+npm run lint      # Next.js lint command
+npm test          # Vitest
+npm run test:ui   # Vitest UI
 ```
 
-The application will be available at `http://localhost:3000`.
+No test files are currently checked in. `npm run build` is the most complete repository-provided verification of application and documentation-adjacent imports.
 
-## Database Schema
+## Deployment
 
-The application uses the existing PIC (Permit Intelligence Center) schema:
+The repository contains three deployment paths:
 
-### Core Tables
+- `cloudbuild.yaml` builds and deploys `app/Dockerfile` to Google Cloud Run.
+- `app/deploy.sh` performs an interactive Cloud Run build and deployment.
+- `manifest.yml` references a prebuilt image for Cloud Foundry.
 
-- **project** - Project records with workflow metadata in `other` jsonb field
-- **process_model** - Workflow template definition
-- **process_instance** - Active workflow instances linked to projects
-- **decision_element** - Step definitions with form schemas
-- **case_event** - Tasks (type='task') and notifications (type='notification')
-- **document** - Document records with markdown content in `other` jsonb field
-- **user_role** - Role definitions (Applicant=1, Analyst=2, Approver=3)
-- **user_assignments** - User-to-role mappings
+Cloud Run deployments must provide the Supabase URL/key, both tenant slug variables, and the public application base URL. HedgeDoc variables are optional. The Supabase authentication settings must allow the deployed origin and `/auth/callback` redirect.
 
-### Workflow Metadata
+See [Operations and deployment](docs/OPERATIONS.md) for configuration, data preparation, OAuth, HedgeDoc, migration, troubleshooting, and release checks.
 
-Workflow-specific data is stored in jsonb `other` fields:
+## Documentation map
 
-**project.other:**
-```json
-{
-  "applicant_user_id": "uuid",
-  "analyst_user_id": "uuid",
-  "approver_user_id": "uuid"
-}
+- [User guide](docs/USER_GUIDE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Operations and deployment](docs/OPERATIONS.md)
+- [External API integration](app/docs/API_INTEGRATION.md)
+- [Database schema assets](database-schema/README.md)
+
+## Repository layout
+
+```text
+.
+├── app/
+│   ├── app/                 # Next.js routes and route handlers
+│   ├── components/          # Layout, workflow step, and editor components
+│   ├── docs/                # API documentation
+│   ├── lib/                 # Supabase, tenant, workflow, and type helpers
+│   └── public/              # Static assets
+├── database-schema/         # Legacy PIC v1.2.0 SQL and reference exports
+├── docs/                    # Product, architecture, and operations guides
+├── scripts/                 # One-time data migration utility
+├── cloudbuild.yaml          # Cloud Build / Cloud Run pipeline
+├── manifest.yml             # Cloud Foundry manifest
+└── .env.example             # Configuration reference
 ```
 
-**process_instance.other:**
-```json
-{
-  "current_step": 1-5,
-  "workflow_status": "pending|in_progress|pending_approval|approved|rejected"
-}
-```
+## Current constraints
 
-**case_event.other (for tasks):**
-```json
-{
-  "step_number": 1-5,
-  "decision_element_id": 1-5,
-  "assigned_user_id": "uuid",
-  "assigned_role_id": 1-3,
-  "task_type": "form|document|approval"
-}
-```
-
-**document.other:**
-```json
-{
-  "document_role": "draft|analysis",
-  "created_by_user_id": "uuid",
-  "markdown_content": "...",
-  "hedgedoc_note_id": "optional"
-}
-```
-
-## Application Structure
-
-```
-app/
-├── layout.tsx              # Root layout with providers
-├── page.tsx                # Landing/redirect page
-├── globals.css             # Tailwind + RJSF styles
-├── login/
-│   └── page.tsx            # Login page
-├── auth/
-│   └── callback/
-│       └── route.ts        # OAuth callback handler
-├── dashboard/
-│   ├── layout.tsx          # Dashboard layout
-│   └── page.tsx            # User dashboard (tasks, cases)
-├── cases/
-│   ├── layout.tsx          # Cases list layout
-│   └── page.tsx            # All cases list
-├── case/
-│   ├── new/
-│   │   └── page.tsx        # Create new case
-│   └── [id]/
-│       └── page.tsx        # Case detail view
-└── step/
-    └── [step]/
-        └── [processId]/
-            └── page.tsx    # Step router
-
-components/
-├── layout/
-│   └── DashboardLayout.tsx # Main app layout with nav
-├── steps/
-│   ├── Step2Form.tsx       # RJSF project info form
-│   ├── Step3Document.tsx   # Applicant document editor
-│   ├── Step4Analysis.tsx   # Analyst review (side-by-side)
-│   └── Step5Approval.tsx   # Approval decision
-└── editor/
-    └── MarkdownEditor.tsx  # Internal markdown editor
-
-lib/
-├── supabase/
-│   ├── client.ts           # Browser Supabase client
-│   ├── server.ts           # Server Supabase client
-│   └── middleware.ts       # Auth middleware helper
-├── types/
-│   └── database.ts         # TypeScript types for schema
-├── workflow/
-│   └── engine.ts           # Workflow functions
-└── hedgedoc/
-    └── client.ts           # HedgeDoc API client
-```
-
-## User Roles
-
-1. **Applicant** (role_id: 1)
-   - Creates new cases
-   - Completes project information form (Step 2)
-   - Drafts applicant document (Step 3)
-
-2. **Analyst** (role_id: 2)
-   - Reviews applicant submissions
-   - Produces environmental analysis (Step 4)
-   - Can receive revision requests
-
-3. **Approver** (role_id: 3)
-   - Reviews completed analyses
-   - Approves or requests changes (Step 5)
-
-## Workflow Flow
-
-```
-┌─────────────────┐
-│  Step 1: Auth   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 2: Form    │ (Applicant)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 3: Doc     │ (Applicant)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 4: Review  │ (Analyst)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐     Request Changes
-│ Step 5: Approve │ ─────────────────────┐
-└────────┬────────┘                      │
-         │ Approve                       │
-         ▼                               │
-┌─────────────────┐                      │
-│    Complete     │                      │
-└─────────────────┘                      │
-                                         │
-         ┌───────────────────────────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 4: Revise  │ (Analyst - with comments)
-└────────┬────────┘
-         │
-         └──────────▶ Back to Step 5
-```
-
-## Features
-
-- **Dynamic Forms**: RJSF forms generated from decision_element.form_data
-- **Collaborative Editing**: Internal markdown editor (HedgeDoc optional)
-- **Side-by-Side Review**: Analysts see applicant draft alongside their editor
-- **Revision Loop**: Approvers can request changes with comments
-- **Notifications**: In-app notification system via case_event
-- **Task Management**: Dashboard shows pending tasks per user
-
-## Docker
-
-Build and run locally with Docker:
-
-```bash
-cd app
-
-# Build the image
-docker build \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
-  --build-arg NEXT_PUBLIC_APP_BASE_URL=http://localhost:8080 \
-  -t review-works .
-
-# Run the container
-docker run -p 8080:8080 \
-  -e NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  -e NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
-  -e SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
-  review-works
-```
-
-## Google Cloud Run Deployment
-
-### Prerequisites
-
-1. Install [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
-2. Authenticate: `gcloud auth login`
-3. Set your project: `gcloud config set project YOUR_PROJECT_ID`
-4. Enable required APIs:
-   ```bash
-   gcloud services enable cloudbuild.googleapis.com run.googleapis.com
-   ```
-
-### Deploy
-
-Using the deployment script:
-
-```bash
-cd app
-
-# Set required environment variables
-export NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-export NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-export SUPABASE_SERVICE_ROLE_KEY=your-service-role-key  # Optional
-
-# Deploy
-./deploy.sh
-```
-
-Or deploy manually:
-
-```bash
-cd app
-
-# Build and push to Google Container Registry
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/review-works \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
-  --build-arg NEXT_PUBLIC_APP_BASE_URL=https://your-service-url.run.app
-
-# Deploy to Cloud Run
-gcloud run deploy review-works \
-  --image gcr.io/YOUR_PROJECT_ID/review-works \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080 \
-  --set-env-vars NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  --set-env-vars NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
-  --set-env-vars SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-```
-
-### Post-Deployment
-
-After the first deployment:
-
-1. Get your Cloud Run service URL from the output
-2. Update your Supabase project's auth settings:
-   - Go to Authentication > URL Configuration
-   - Add your Cloud Run URL to "Redirect URLs"
-3. Redeploy with the correct `NEXT_PUBLIC_APP_BASE_URL`:
-   ```bash
-   export NEXT_PUBLIC_APP_BASE_URL=https://your-service-url.run.app
-   ./deploy.sh
-   ```
-
-## License
-
-MIT
+- Workflow configuration assumes process model ID `1`, decision element IDs `1`–`5`, and role IDs Applicant `1`, Analyst `2`, Approver `3`.
+- New self-registered users still need an active tenant membership and appropriate role assignment before they can use protected application pages or receive work.
+- Analyst and approver assignment selects the first eligible tenant-scoped assignment when the project does not already store an assignee.
+- HedgeDoc content is edited in HedgeDoc. The database stores note linkage metadata; the internal editor stores Markdown directly in `document.other.markdown_content`. The Step 5 preview currently reads database Markdown and does not fetch the live HedgeDoc note.
+- The dashboard's role-badge lookup is user-scoped but not tenant-filtered; task and case queries remain tenant-scoped. Use RLS and avoid reusing conflicting numeric role IDs across tenants.
+- The in-app Developer Resources page predates tenant support and its examples omit `tenant_id`. The Markdown API guide is the canonical integration reference.
