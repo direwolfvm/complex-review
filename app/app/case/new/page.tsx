@@ -2,10 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { getTenantIdClient } from '@/lib/tenant/client';
-import { resolveProcessModelId } from '@/lib/workflow/process-model';
-import type { ProjectWorkflowMeta, ProcessInstanceWorkflowMeta, CaseEventWorkflowMeta } from '@/lib/types/database';
 
 export default function NewCasePage() {
   const router = useRouter();
@@ -17,102 +13,14 @@ export default function NewCasePage() {
     setError(null);
 
     try {
-      const supabase = createClient();
-      const tenantId = await getTenantIdClient();
-      const processModelId = await resolveProcessModelId(supabase, tenantId);
-      const { data: { user } } = await supabase.auth.getUser();
+      const response = await fetch('/api/cases', { method: 'POST' });
+      const body = await response.json();
 
-      if (!user) {
-        throw new Error('You must be logged in to create a case');
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to create case');
       }
 
-      // 1. Create project
-      const projectMeta: ProjectWorkflowMeta = {
-        applicant_user_id: user.id,
-      };
-
-      const { data: project, error: projectError } = await supabase
-        .from('project')
-        .insert({
-          tenant_id: tenantId,
-          title: 'New Project',
-          current_status: 'draft',
-          other: projectMeta as unknown as Record<string, unknown>,
-        })
-        .select()
-        .single();
-
-      if (projectError || !project) {
-        throw new Error(`Failed to create project: ${projectError?.message}`);
-      }
-
-      // 2. Create process instance
-      const processMeta: ProcessInstanceWorkflowMeta = {
-        current_step: 2,
-        workflow_status: 'draft',
-      };
-
-      const { data: processInstance, error: processError } = await supabase
-        .from('process_instance')
-        .insert({
-          tenant_id: tenantId,
-          parent_project_id: project.id,
-          process_model: processModelId,
-          status: 'underway',
-          stage: 'Step 2: Project Information',
-          start_date: new Date().toISOString().split('T')[0],
-          other: processMeta as unknown as Record<string, unknown>,
-        })
-        .select()
-        .single();
-
-      if (processError || !processInstance) {
-        throw new Error(`Failed to create process instance: ${processError?.message}`);
-      }
-
-      // 3. Create initial task for step 2
-      const taskMeta: CaseEventWorkflowMeta = {
-        step_number: 2,
-        decision_element_id: 2,
-        assigned_user_id: user.id,
-        assigned_role_id: 1,
-        task_type: 'form',
-      };
-
-      const { error: taskError } = await supabase
-        .from('case_event')
-        .insert({
-          tenant_id: tenantId,
-          parent_process_id: processInstance.id,
-          name: 'Complete Project Information',
-          description: 'Fill out the project information form to proceed',
-          type: 'task',
-          tier: 2,
-          status: 'pending',
-          assigned_entity: user.id,
-          other: taskMeta as unknown as Record<string, unknown>,
-        });
-
-      if (taskError) {
-        throw new Error(`Failed to create initial task: ${taskError.message}`);
-      }
-
-      // 4. Create decision payload for auth step (step 1 completed)
-      await supabase.from('process_decision_payload').insert({
-        tenant_id: tenantId,
-        process_decision_element: 1,
-        process: processInstance.id,
-        project: project.id,
-        result: 'completed',
-        result_bool: true,
-        evaluation_data: {
-          user_id: user.id,
-          authenticated_at: new Date().toISOString(),
-        },
-      });
-
-      // Redirect to step 2 form
-      router.push(`/step/2/${processInstance.id}`);
+      router.push(`/step/2/${body.processInstanceId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create case');
       setLoading(false);
