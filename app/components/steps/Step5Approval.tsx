@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getTenantIdClient } from '@/lib/tenant/client';
@@ -31,17 +31,15 @@ export default function Step5Approval({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comments, setComments] = useState('');
-  const [analysisDoc, setAnalysisDoc] = useState<Document | null>(null);
-
-  // Find documents
-  useEffect(() => {
-    const analysis = documents.find(d => {
-      const meta = d.other as DocumentWorkflowMeta;
-      return meta?.document_role === 'analysis';
-    });
-
-    setAnalysisDoc(analysis || null);
-  }, [documents]);
+  // Derived from props rather than mirrored into state via an effect.
+  const analysisDoc = useMemo(
+    () =>
+      documents.find(d => {
+        const meta = d.other as DocumentWorkflowMeta;
+        return meta?.document_role === 'analysis';
+      }) || null,
+    [documents]
+  );
 
   const handleApprove = async () => {
     setLoading(true);

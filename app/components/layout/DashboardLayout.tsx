@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -21,20 +21,17 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
   const supabase = useMemo(() => createClient(), []);
   const [notifications, setNotifications] = useState<CaseEvent[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [clientError, setClientError] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
+  // createClient() returns a stub when the runtime config is missing, which is a
+  // render-time fact rather than something to discover inside an effect.
+  const clientUnavailable = !supabase?.from;
+  const clientError = clientUnavailable || loadFailed;
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
+    if (clientUnavailable) return;
+
     try {
-      // Check if client is properly initialized (has 'from' method)
-      if (!supabase?.from) {
-        setClientError(true);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('case_event')
         .select('*')
@@ -53,9 +50,13 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
       setNotifications(data || []);
     } catch (err) {
       console.error('Failed to load notifications:', err);
-      setClientError(true);
+      setLoadFailed(true);
     }
-  };
+  }, [supabase, clientUnavailable, tenantId, user.id]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   const handleSignOut = async () => {
     try {

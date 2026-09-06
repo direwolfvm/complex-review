@@ -42,6 +42,14 @@ export async function GET(request: Request) {
 
   if (authorizationId) {
     const { data: details } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+
+    // The call answers with one of two shapes: an OAuthRedirect when the user has
+    // already consented, or the authorization details when a consent screen is still
+    // needed. Honour the redirect instead of asking again.
+    if (details && 'redirect_url' in details) {
+      return NextResponse.redirect(details.redirect_url);
+    }
+
     if (details?.client?.name) {
       appName = details.client.name;
     }

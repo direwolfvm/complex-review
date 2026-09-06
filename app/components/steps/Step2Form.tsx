@@ -7,6 +7,11 @@ import { getTenantIdClient } from '@/lib/tenant/client';
 import Form from '@rjsf/core';
 import validator from '@rjsf/validator-ajv8';
 import type { RJSFSchema } from '@rjsf/utils';
+
+// The schema's own property map, so filterSchema can hand its result straight back
+// to RJSFSchema without widening to Record<string, unknown>.
+type SchemaProperties = NonNullable<RJSFSchema['properties']>;
+type SchemaProperty = SchemaProperties[string];
 import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta } from '@/lib/types/database';
 
 interface Step2FormProps {
@@ -37,7 +42,7 @@ const HIDDEN_SYSTEM_FIELDS = [
 ];
 
 // Make a property type nullable (allows null/empty values)
-function makeNullable(prop: unknown): unknown {
+function makeNullable(prop: SchemaProperty): SchemaProperty {
   if (typeof prop !== 'object' || prop === null) return prop;
 
   const propObj = prop as Record<string, unknown>;
@@ -61,8 +66,8 @@ function makeNullable(prop: unknown): unknown {
 
   // For object types, also make nested properties nullable
   if (propType === 'object' && propObj.properties) {
-    const nestedProps = propObj.properties as Record<string, unknown>;
-    const nullableNestedProps: Record<string, unknown> = {};
+    const nestedProps = propObj.properties as SchemaProperties;
+    const nullableNestedProps: SchemaProperties = {};
     for (const [key, value] of Object.entries(nestedProps)) {
       nullableNestedProps[key] = makeNullable(value);
     }
@@ -73,17 +78,17 @@ function makeNullable(prop: unknown): unknown {
 
   // For array types, make items nullable too
   if (propType === 'array' && propObj.items) {
-    result.items = makeNullable(propObj.items);
+    result.items = makeNullable(propObj.items as SchemaProperty);
   }
 
-  return result;
+  return result as SchemaProperty;
 }
 
 // Filter out hidden fields from a schema and ensure only title is required
 function filterSchema(schema: RJSFSchema): RJSFSchema {
   if (!schema.properties) return schema;
 
-  const filteredProperties: Record<string, unknown> = {};
+  const filteredProperties: SchemaProperties = {};
   for (const [key, value] of Object.entries(schema.properties)) {
     if (!HIDDEN_SYSTEM_FIELDS.includes(key)) {
       // Make all fields except 'title' nullable
