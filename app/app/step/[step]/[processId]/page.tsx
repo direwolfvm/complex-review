@@ -6,6 +6,7 @@ import Step3Document from '@/components/steps/Step3Document';
 import Step4Analysis from '@/components/steps/Step4Analysis';
 import Step5Approval from '@/components/steps/Step5Approval';
 import { canUserAccessStep, getRoleName } from '@/lib/workflow/engine';
+import { findDecisionElementForStep } from '@/lib/workflow/decision-element';
 import type { Project, ProcessInstanceWorkflowMeta, DecisionElement } from '@/lib/types/database';
 import { getTenantContextForUser } from '@/lib/tenant/server';
 
@@ -102,12 +103,7 @@ export default async function StepPage({
   }
 
   // Get decision element for this step (contains form schema for step 2)
-  const { data: decisionElement } = await supabase
-    .from('decision_element')
-    .select('*')
-    .eq('id', stepNumber)
-    .eq('tenant_id', tenantId)
-    .single();
+  const decisionElement = await findDecisionElementForStep(supabase, tenantId, stepNumber);
 
   // Get existing task for this step
   const { data: existingTask } = await supabase
