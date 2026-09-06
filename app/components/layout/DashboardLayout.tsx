@@ -72,22 +72,10 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
 
   const markAsRead = async (notificationId: number) => {
     try {
-      if (!supabase?.from) return;
-
-      const notification = notifications.find(n => n.id === notificationId);
-      await supabase
-        .from('case_event')
-        .update({
-          status: 'completed',
-          other: {
-            ...(notification?.other as Record<string, unknown> || {}),
-            read: true,
-            read_at: new Date().toISOString(),
-          },
-        })
-        .eq('id', notificationId)
-        .eq('tenant_id', tenantId);
-
+      const response = await fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Request failed');
+      }
       setNotifications(notifications.filter(n => n.id !== notificationId));
     } catch (err) {
       console.error('Failed to mark notification as read:', err);

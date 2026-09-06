@@ -15,6 +15,10 @@ export async function POST(
       throw new ApiError(400, 'Invalid case id');
     }
 
+    // Authenticate before validating the body, so an anonymous caller cannot probe
+    // the input rules.
+    const session = await requireSession();
+
     const body = await request.json().catch(() => ({}));
     const decision = body?.decision as ApprovalDecision;
     const comments = typeof body?.comments === 'string' ? body.comments : '';
@@ -23,7 +27,6 @@ export async function POST(
       throw new ApiError(400, 'decision must be "approved" or "changes_requested"');
     }
 
-    const session = await requireSession();
     // Separation of duties is enforced here, on the write, rather than only when the
     // approval page rendered: the approver must hold the role and must not be the
     // applicant or the analyst who prepared the review.
