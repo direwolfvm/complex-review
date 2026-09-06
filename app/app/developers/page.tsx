@@ -124,10 +124,34 @@ Prefer: return=representation`}
       </div>
 
       <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Tenant ID</h3>
+        <p className="text-gray-600 mb-2">
+          Review Works shares its database with other permitting portals, so <strong>every row you
+          create must carry a <code className="bg-gray-100 px-1 rounded">tenant_id</code></strong>.
+          Writes that omit it are rejected by row-level security. Resolve it once by slug and reuse
+          it for the rest of the integration:
+        </p>
+        <CodeBlock
+          language="bash"
+          code={`curl -G "{SUPABASE_URL}/rest/v1/tenant" \\
+  -H "apikey: {SUPABASE_ANON_KEY}" \\
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \\
+  --data-urlencode "select=id" \\
+  --data-urlencode "slug=eq.reviewworks"`}
+        />
+        <p className="text-gray-600 mt-2">
+          For the same reason, filter every read by{' '}
+          <code className="bg-gray-100 px-1 rounded">tenant_id</code> as well, and never assume a
+          numeric ID from one table belongs to your tenant.
+        </p>
+      </div>
+
+      <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Integration Flow</h3>
         <p className="text-gray-600 mb-2">To create an environmental review case programmatically:</p>
         <ol className="list-decimal list-inside space-y-2 text-gray-600">
           <li><strong>Authenticate</strong> - Sign in to get a user ID and access token</li>
+          <li><strong>Resolve Tenant</strong> - Look up the tenant ID that every record must carry</li>
           <li><strong>Create Project</strong> - Create the project record with case data</li>
           <li><strong>Create Process Instance</strong> - Link a workflow to the project</li>
           <li><strong>Create Initial Task</strong> - Create the first task for the applicant</li>
@@ -138,7 +162,13 @@ Prefer: return=representation`}
 
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Decision Elements (Workflow Steps)</h3>
-        <p className="text-gray-600 mb-2">The Review Works workflow has 5 decision elements:</p>
+        <p className="text-gray-600 mb-2">
+          The Review Works workflow has 5 decision elements. The IDs below identify the step within
+          the workflow; they are not <code className="bg-gray-100 px-1 rounded">decision_element</code> primary keys
+          and should not be sent as such.
+          Resolve rows in that table by <code className="bg-gray-100 px-1 rounded">tenant_id</code>{' '}
+          and title.
+        </p>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -238,6 +268,7 @@ function ProjectTab() {
   -H "Content-Type: application/json" \\
   -H "Prefer: return=representation" \\
   -d '{
+    "tenant_id": "{TENANT_ID}",
     "title": "Highway 101 Environmental Review",
     "description": "Environmental impact assessment for highway expansion",
     "sector": "transportation",
@@ -265,6 +296,7 @@ function ProjectTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
+              <tr><td className="px-4 py-3 text-sm font-mono">tenant_id</td><td className="px-4 py-3 text-sm">uuid</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Your tenant ID; writes without it are rejected</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">title</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Project name</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">description</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">No</td><td className="px-4 py-3 text-sm text-gray-500">Project summary</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">sector</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">No</td><td className="px-4 py-3 text-sm text-gray-500">Category (energy, transportation, etc.)</td></tr>
@@ -302,6 +334,23 @@ function ProcessTab() {
       </div>
 
       <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Resolve the process model first</h3>
+        <p className="text-gray-600 mb-2">
+          Process model IDs come from a sequence shared by every tenant in the project, so an ID on
+          its own is not stable. Look yours up by tenant and title rather than hardcoding a number.
+        </p>
+        <CodeBlock
+          language="bash"
+          code={`curl -G "{SUPABASE_URL}/rest/v1/process_model" \\
+  -H "apikey: {SUPABASE_ANON_KEY}" \\
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \\
+  --data-urlencode "select=id" \\
+  --data-urlencode "tenant_id=eq.{TENANT_ID}" \\
+  --data-urlencode "title=eq.Complex Environmental Review"`}
+        />
+      </div>
+
+      <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Request</h3>
         <CodeBlock
           language="bash"
@@ -311,8 +360,9 @@ function ProcessTab() {
   -H "Content-Type: application/json" \\
   -H "Prefer: return=representation" \\
   -d '{
+    "tenant_id": "{TENANT_ID}",
     "parent_project_id": {PROJECT_ID},
-    "process_model": 1,
+    "process_model": {PROCESS_MODEL_ID},
     "status": "underway",
     "stage": "Step 2: Project Information",
     "start_date": "2026-01-15",
@@ -337,8 +387,9 @@ function ProcessTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
+              <tr><td className="px-4 py-3 text-sm font-mono">tenant_id</td><td className="px-4 py-3 text-sm">uuid</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Your tenant ID; writes without it are rejected</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">parent_project_id</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Project ID</td></tr>
-              <tr><td className="px-4 py-3 text-sm font-mono">process_model</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Use 1 for standard workflow</td></tr>
+              <tr><td className="px-4 py-3 text-sm font-mono">process_model</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Resolve by tenant_id + title; do not hardcode</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">status</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">&quot;underway&quot; for active processes</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">stage</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">No</td><td className="px-4 py-3 text-sm text-gray-500">Human-readable stage</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">other</td><td className="px-4 py-3 text-sm">jsonb</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Workflow state metadata</td></tr>
@@ -382,6 +433,7 @@ function TasksTab() {
   -H "Content-Type: application/json" \\
   -H "Prefer: return=representation" \\
   -d '{
+    "tenant_id": "{TENANT_ID}",
     "parent_process_id": {PROCESS_INSTANCE_ID},
     "name": "Complete Project Information",
     "description": "Fill out the project information form",
@@ -412,6 +464,7 @@ function TasksTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
+              <tr><td className="px-4 py-3 text-sm font-mono">tenant_id</td><td className="px-4 py-3 text-sm">uuid</td><td className="px-4 py-3 text-sm text-gray-500">Your tenant ID; writes without it are rejected</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">parent_process_id</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm text-gray-500">Process instance ID</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">type</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm text-gray-500">&quot;task&quot; or &quot;notification&quot;</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">tier</td><td className="px-4 py-3 text-sm">integer</td><td className="px-4 py-3 text-sm text-gray-500">Step number (2-5)</td></tr>
@@ -483,6 +536,7 @@ function DocumentsTab() {
   -H "Content-Type: application/json" \\
   -H "Prefer: return=representation" \\
   -d '{
+    "tenant_id": "{TENANT_ID}",
     "parent_process_id": {PROCESS_INSTANCE_ID},
     "title": "Applicant Draft Document",
     "document_type": "draft",
@@ -507,6 +561,7 @@ function DocumentsTab() {
   -H "Content-Type: application/json" \\
   -H "Prefer: return=representation" \\
   -d '{
+    "tenant_id": "{TENANT_ID}",
     "parent_process_id": {PROCESS_INSTANCE_ID},
     "title": "Environmental Analysis",
     "document_type": "analysis",
@@ -534,6 +589,7 @@ function DocumentsTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
+              <tr><td className="px-4 py-3 text-sm font-mono">tenant_id</td><td className="px-4 py-3 text-sm">uuid</td><td className="px-4 py-3 text-sm text-gray-500">Your tenant ID; writes without it are rejected</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">parent_process_id</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm text-gray-500">Process instance ID</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">document_type</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm text-gray-500">&quot;draft&quot; or &quot;analysis&quot;</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">status</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm text-gray-500">&quot;draft&quot; or &quot;submitted&quot;</td></tr>
