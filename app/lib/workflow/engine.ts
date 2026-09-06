@@ -56,11 +56,6 @@ interface InitializeCaseResult {
   initialTask: CaseEvent;
 }
 
-interface WorkflowError {
-  code: string;
-  message: string;
-}
-
 function getDecisionElementResponsibleRole(decisionElement: Record<string, unknown> | null | undefined): number | null {
   if (!decisionElement) return null;
   const direct = decisionElement.responsible_role;

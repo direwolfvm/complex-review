@@ -32,7 +32,6 @@ export default function Step5Approval({
   const [error, setError] = useState<string | null>(null);
   const [comments, setComments] = useState('');
   const [analysisDoc, setAnalysisDoc] = useState<Document | null>(null);
-  const [draftDoc, setDraftDoc] = useState<Document | null>(null);
 
   // Find documents
   useEffect(() => {
@@ -41,13 +40,7 @@ export default function Step5Approval({
       return meta?.document_role === 'analysis';
     });
 
-    const draft = documents.find(d => {
-      const meta = d.other as DocumentWorkflowMeta;
-      return meta?.document_role === 'draft';
-    });
-
     setAnalysisDoc(analysis || null);
-    setDraftDoc(draft || null);
   }, [documents]);
 
   const handleApprove = async () => {
