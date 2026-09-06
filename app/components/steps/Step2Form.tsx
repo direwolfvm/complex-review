@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { getTenantIdClient } from '@/lib/tenant/client';
 import Form from '@rjsf/core';
 import validator from '@rjsf/validator-ajv8';
 import type { RJSFSchema } from '@rjsf/utils';
@@ -12,18 +10,13 @@ import type { RJSFSchema } from '@rjsf/utils';
 // to RJSFSchema without widening to Record<string, unknown>.
 type SchemaProperties = NonNullable<RJSFSchema['properties']>;
 type SchemaProperty = SchemaProperties[string];
-import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta } from '@/lib/types/database';
+import type { Project, ProcessInstance, DecisionElement } from '@/lib/types/database';
 
 interface Step2FormProps {
   processInstance: ProcessInstance;
   project: Project;
   decisionElement: DecisionElement | null;
   currentStep: number;
-  userId: string;
-  tenantId: string;
-  task: CaseEvent | null;
-  documents: Document[];
-  hedgedocBaseUrl?: string | null;
 }
 
 // These are auto-populated by Supabase or the system
@@ -159,10 +152,6 @@ export default function Step2Form({
   project,
   decisionElement,
   currentStep,
-  userId,
-  tenantId,
-  task,
-  hedgedocBaseUrl = null,
 }: Step2FormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -198,160 +187,17 @@ export default function Step2Form({
     setError(null);
 
     try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-
-      // 1. Update project with form data (convert empty strings to null for optional fields)
-      const { error: projectError } = await supabase
-        .from('project')
-        .update({
-          title: formData.title as string,
-          description: (formData.description as string) || null,
-          sector: (formData.sector as string) || null,
-          lead_agency: (formData.lead_agency as string) || null,
-          location_text: (formData.location_text as string) || null,
-          current_status: 'underway',
-        })
-        .eq('id', project.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      if (projectError) throw projectError;
-
-      // 2. Create decision payload with form data
-      await supabase.from('process_decision_payload').insert({
-        tenant_id: effectiveTenantId,
-        process_decision_element: 2,
-        process: processInstance.id,
-        project: project.id,
-        result: 'completed',
-        result_bool: true,
-        evaluation_data: formData,
+      const response = await fetch(`/api/cases/${processInstance.id}/steps/2`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formData }),
       });
+      const body = await response.json();
 
-      // 3. Mark current task as completed
-      if (task) {
-        const taskMeta = (task.other as CaseEventWorkflowMeta) || {};
-        await supabase
-          .from('case_event')
-          .update({
-            status: 'completed',
-            outcome: 'completed',
-            other: {
-              ...taskMeta,
-              completed_by: userId,
-              completed_at: new Date().toISOString(),
-            },
-          })
-          .eq('id', task.id)
-          .eq('tenant_id', effectiveTenantId);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to submit form');
       }
 
-      // 4. Update process instance to step 3
-      const processMeta: ProcessInstanceWorkflowMeta = {
-        ...(processInstance.other as ProcessInstanceWorkflowMeta || {}),
-        current_step: 3,
-        workflow_status: 'in_progress',
-      };
-
-      await supabase
-        .from('process_instance')
-        .update({
-          stage: 'Step 3: Applicant Document',
-          other: processMeta as unknown as Record<string, unknown>,
-        })
-        .eq('id', processInstance.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      // 5. Create task for step 3
-      const newTaskMeta: CaseEventWorkflowMeta = {
-        step_number: 3,
-        decision_element_id: 3,
-        assigned_user_id: userId,
-        assigned_role_id: 1, // Applicant
-        task_type: 'document',
-      };
-
-      await supabase.from('case_event').insert({
-        tenant_id: effectiveTenantId,
-        parent_process_id: processInstance.id,
-        name: 'Complete Analysis Document',
-        description: 'Draft your project analysis document',
-        type: 'task',
-        tier: 3,
-        status: 'pending',
-        assigned_entity: userId,
-        other: newTaskMeta as unknown as Record<string, unknown>,
-      });
-
-      // 6. Create the draft document
-      const docMeta: DocumentWorkflowMeta = {
-        document_role: 'draft',
-        created_by_user_id: userId,
-        markdown_content: `# ${formData.title}
-
-## Executive Summary
-[Provide a brief overview of the project]
-
-## Project Description
-${formData.description || '[Describe the project in detail]'}
-
-## Environmental Considerations
-[List any environmental factors to consider]
-
-## Supporting Documentation
-[Reference any supporting documents]
-`,
-      };
-
-      await supabase.from('document').insert({
-        tenant_id: effectiveTenantId,
-        parent_process_id: processInstance.id,
-        title: 'Applicant Draft Document',
-        document_type: 'draft',
-        status: 'draft',
-        prepared_by: userId,
-        other: docMeta as unknown as Record<string, unknown>,
-      });
-
-      if (hedgedocBaseUrl) {
-        const { data: latestDoc } = await supabase
-          .from('document')
-          .select('*')
-          .eq('tenant_id', effectiveTenantId)
-          .eq('parent_process_id', processInstance.id)
-          .eq('document_type', 'draft')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (latestDoc) {
-          const response = await fetch('/api/hedgedoc/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: latestDoc.title || 'Applicant Draft Document',
-              initialContent: docMeta.markdown_content || '',
-            }),
-          });
-
-          if (response.ok) {
-            const data = (await response.json()) as { noteId: string; url: string };
-            await supabase
-              .from('document')
-              .update({
-                other: {
-                  ...docMeta,
-                  hedgedoc_note_id: data.noteId,
-                  hedgedoc_url: data.url,
-                },
-              })
-              .eq('id', latestDoc.id)
-              .eq('tenant_id', effectiveTenantId);
-          }
-        }
-      }
-
-      // Navigate to step 3
       router.push(`/step/3/${processInstance.id}`);
       router.refresh();
     } catch (err) {
