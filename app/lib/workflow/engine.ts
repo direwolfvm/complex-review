@@ -23,6 +23,7 @@ import type {
   DocumentWorkflowMeta,
 } from '@/lib/types/database';
 import { resolveProcessModelId } from '@/lib/workflow/process-model';
+import { findDecisionElementForStep } from '@/lib/workflow/decision-element';
 
 /**
  * The workflow runs steps 2 through 5. Step 1 is authentication, handled by Supabase
@@ -54,11 +55,6 @@ interface InitializeCaseResult {
   project: Project;
   processInstance: ProcessInstance;
   initialTask: CaseEvent;
-}
-
-interface WorkflowError {
-  code: string;
-  message: string;
 }
 
 function getDecisionElementResponsibleRole(decisionElement: Record<string, unknown> | null | undefined): number | null {
@@ -296,12 +292,7 @@ export async function advanceToStep(
   // The catalog supplies the task title and the responsible role. When it is missing we
   // fall back to the built-in step definitions, so the workflow keeps its assignment
   // rules instead of handing the step to whoever triggered it.
-  const { data: decisionElement } = await supabase
-    .from('decision_element')
-    .select('*')
-    .eq('id', stepNumber)
-    .eq('tenant_id', tenantId)
-    .single();
+  const decisionElement = await findDecisionElementForStep(supabase, tenantId, stepNumber);
 
   // Determine assigned user based on role
   let assignedUserId = initiatingUserId;
@@ -692,12 +683,7 @@ export async function canUserAccessStep(
   tenantId: string
 ): Promise<{ canAccess: boolean; requiredRole: number | null; userRoles: number[] }> {
   // Get the decision element for this step to find required role
-  const { data: decisionElement } = await supabase
-    .from('decision_element')
-    .select('other')
-    .eq('id', stepNumber)
-    .eq('tenant_id', tenantId)
-    .single();
+  const decisionElement = await findDecisionElementForStep(supabase, tenantId, stepNumber, 'other');
 
   const catalogRole = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>);
   const requiredRole = catalogRole ?? STEP_REQUIRED_ROLE[stepNumber] ?? null;

@@ -2,31 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { getTenantIdClient } from '@/lib/tenant/client';
 import MarkdownEditor from '@/components/editor/MarkdownEditor';
-import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
+import type { ProcessInstance, DecisionElement, Document, DocumentWorkflowMeta } from '@/lib/types/database';
 
 interface Step3DocumentProps {
   processInstance: ProcessInstance;
-  project: Project;
   decisionElement: DecisionElement | null;
   currentStep: number;
-  userId: string;
-  tenantId: string;
-  task: CaseEvent | null;
   documents: Document[];
   hedgedocBaseUrl?: string | null;
 }
 
 export default function Step3Document({
   processInstance,
-  project,
   decisionElement,
   currentStep,
-  userId,
-  tenantId,
-  task,
   documents,
   hedgedocBaseUrl = null,
 }: Step3DocumentProps) {
@@ -57,41 +47,13 @@ export default function Step3Document({
   const ensureHedgeDocNote = async (doc: Document): Promise<{ noteId: string; url: string } | null> => {
     if (!hedgedocBaseUrl) return null;
 
-    const meta = (doc.other as DocumentWorkflowMeta) || {};
-    if (meta.hedgedoc_note_id && meta.hedgedoc_url) {
-      return { noteId: meta.hedgedoc_note_id, url: meta.hedgedoc_url };
-    }
-
-    const response = await fetch('/api/hedgedoc/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: doc.title || 'Applicant Draft Document',
-        initialContent: meta.markdown_content || '',
-      }),
-    });
+    const response = await fetch(`/api/documents/${doc.id}/hedgedoc`, { method: 'POST' });
 
     if (!response.ok) {
       throw new Error('Failed to create HedgeDoc note');
     }
 
-    const data = (await response.json()) as { noteId: string; url: string };
-
-    const effectiveTenantId = tenantId || await getTenantIdClient();
-
-    await createClient()
-      .from('document')
-      .update({
-        other: {
-          ...meta,
-          hedgedoc_note_id: data.noteId,
-          hedgedoc_url: data.url,
-        },
-      })
-      .eq('id', doc.id)
-      .eq('tenant_id', effectiveTenantId);
-
-    return data;
+    return (await response.json()) as { noteId: string; url: string };
   };
 
   useEffect(() => {
@@ -126,21 +88,16 @@ export default function Step3Document({
     setSaving(true);
 
     try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-      const docMeta = (document.other as DocumentWorkflowMeta) || {};
+      const response = await fetch(`/api/documents/${document.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
 
-      await supabase
-        .from('document')
-        .update({
-          other: {
-            ...docMeta,
-            markdown_content: content,
-            last_edited_by_user_id: userId,
-          },
-        })
-        .eq('id', document.id)
-        .eq('tenant_id', effectiveTenantId);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to save');
+      }
 
       setError(null);
     } catch (err) {
@@ -154,189 +111,18 @@ export default function Step3Document({
     setLoading(true);
     setError(null);
 
-  try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-
-      // Ensure HedgeDoc note exists when embedded editor is enabled
-      if (hedgedocBaseUrl && document) {
-        const result = await ensureHedgeDocNote(document);
-        if (result) {
-          setHedgedocNoteId(result.noteId);
-        }
-      }
-
-      // 1. Save document content
-      if (document) {
-        const docMeta = (document.other as DocumentWorkflowMeta) || {};
-        await supabase
-          .from('document')
-          .update({
-            status: 'submitted',
-            other: {
-              ...docMeta,
-              markdown_content: hedgedocBaseUrl ? docMeta.markdown_content : content,
-              last_edited_by_user_id: userId,
-            },
-          })
-          .eq('id', document.id)
-          .eq('tenant_id', effectiveTenantId);
-      }
-
-      // 2. Create decision payload
-      await supabase.from('process_decision_payload').insert({
-        tenant_id: effectiveTenantId,
-        process_decision_element: 3,
-        process: processInstance.id,
-        project: project.id,
-        result: 'completed',
-        result_bool: true,
-        evaluation_data: { document_id: document?.id, submitted_at: new Date().toISOString() },
+    try {
+      const response = await fetch(`/api/cases/${processInstance.id}/steps/3`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
       });
+      const body = await response.json();
 
-      // 3. Mark current task as completed
-      if (task) {
-        const taskMeta = (task.other as CaseEventWorkflowMeta) || {};
-        await supabase
-          .from('case_event')
-          .update({
-            status: 'completed',
-            outcome: 'completed',
-            other: {
-              ...taskMeta,
-              completed_by: userId,
-              completed_at: new Date().toISOString(),
-            },
-          })
-          .eq('id', task.id)
-          .eq('tenant_id', effectiveTenantId);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to complete step');
       }
 
-      // 4. Update process instance to step 4
-      const processMeta: ProcessInstanceWorkflowMeta = {
-        ...(processInstance.other as ProcessInstanceWorkflowMeta || {}),
-        current_step: 4,
-        workflow_status: 'in_progress',
-      };
-
-      await supabase
-        .from('process_instance')
-        .update({
-          stage: 'Step 4: Analyst Review',
-          other: processMeta as unknown as Record<string, unknown>,
-        })
-        .eq('id', processInstance.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      // 5. Find an analyst to assign (exclude the applicant - can't review your own case)
-      const projectMeta = (project.other as ProjectWorkflowMeta) || {};
-      const applicantId = projectMeta.applicant_user_id;
-      let analystId = projectMeta.analyst_user_id;
-
-      if (!analystId) {
-        // Find an analyst who is NOT the applicant
-        const { data: analystAssignments } = await supabase
-          .from('user_assignments')
-            .select('user_id')
-            .eq('tenant_id', effectiveTenantId)
-            .eq('user_role', 2); // Analyst role
-
-        // Filter out the applicant
-        const availableAnalysts = (analystAssignments || []).filter(
-          (a: { user_id: string | null }) => a.user_id !== applicantId
-        );
-
-        analystId = availableAnalysts[0]?.user_id || '';
-
-        // Update project with analyst
-        if (analystId) {
-          await supabase
-            .from('project')
-              .update({
-              other: {
-                ...projectMeta,
-                analyst_user_id: analystId,
-              },
-              })
-              .eq('id', project.id)
-              .eq('tenant_id', effectiveTenantId);
-        }
-      }
-
-      // 6. Create task for step 4 (Analyst)
-      const newTaskMeta: CaseEventWorkflowMeta = {
-        step_number: 4,
-        decision_element_id: 4,
-        assigned_user_id: analystId || '',
-        assigned_role_id: 2, // Analyst
-        task_type: 'document',
-      };
-
-      await supabase.from('case_event').insert({
-        tenant_id: effectiveTenantId,
-        parent_process_id: processInstance.id,
-        name: 'Complete Environmental Review',
-        description: 'Review the applicant document and produce the environmental analysis',
-        type: 'task',
-        tier: 4,
-        status: 'pending',
-        assigned_entity: analystId || '',
-        other: newTaskMeta as unknown as Record<string, unknown>,
-      });
-
-      // 7. Create the analysis document
-      const analysisDocMeta: DocumentWorkflowMeta = {
-        document_role: 'analysis',
-        created_by_user_id: analystId || '',
-        markdown_content: `# Environmental Review Analysis
-
-## Review Summary
-[Summarize the environmental review findings for "${project.title}"]
-
-## Applicant Submission Review
-[Review of the applicant's submitted document]
-
-## Compliance Assessment
-[Assess compliance with applicable regulations]
-
-## Recommendations
-[Provide recommendations]
-
-## Conclusion
-[State the conclusion of the analysis]
-`,
-      };
-
-      await supabase.from('document').insert({
-        tenant_id: effectiveTenantId,
-        parent_process_id: processInstance.id,
-        title: 'Environmental Analysis',
-        document_type: 'analysis',
-        status: 'draft',
-        related_document_id: document?.id,
-        prepared_by: analystId || '',
-        other: analysisDocMeta as unknown as Record<string, unknown>,
-      });
-
-      // 8. Create notification for analyst
-      if (analystId) {
-        await supabase.from('case_event').insert({
-          tenant_id: effectiveTenantId,
-          parent_process_id: processInstance.id,
-          name: 'New Case Assigned',
-          description: `You have been assigned to review "${project.title}"`,
-          type: 'notification',
-          status: 'pending',
-          assigned_entity: analystId,
-          other: {
-            notification_type: 'assignment',
-            project_id: project.id,
-            read: false,
-          },
-        });
-      }
-
-      // Navigate to case detail
       router.push(`/case/${processInstance.id}`);
       router.refresh();
     } catch (err) {

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { getRoleName } from '@/lib/workflow/engine';
 import { getTenantContextForUser } from '@/lib/tenant/server';
-import type { CaseEvent, ProcessInstance, Project, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
+import type { ProcessInstance, Project, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
 
 // Status badge component
 function StatusBadge({ status }: { status: string }) {

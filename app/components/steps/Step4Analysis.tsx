@@ -2,18 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { getTenantIdClient } from '@/lib/tenant/client';
 import MarkdownEditor from '@/components/editor/MarkdownEditor';
-import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
+import type { ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, DocumentWorkflowMeta } from '@/lib/types/database';
 
 interface Step4AnalysisProps {
   processInstance: ProcessInstance;
-  project: Project;
   decisionElement: DecisionElement | null;
   currentStep: number;
-  userId: string;
-  tenantId: string;
   task: CaseEvent | null;
   documents: Document[];
   hedgedocBaseUrl?: string | null;
@@ -21,11 +16,8 @@ interface Step4AnalysisProps {
 
 export default function Step4Analysis({
   processInstance,
-  project,
   decisionElement,
   currentStep,
-  userId,
-  tenantId,
   task,
   documents,
   hedgedocBaseUrl = null,
@@ -73,44 +65,16 @@ export default function Step4Analysis({
     }
   }, [documents]);
 
-  const ensureHedgeDocNote = async (doc: Document, defaultTitle: string): Promise<{ noteId: string; url: string } | null> => {
+  const ensureHedgeDocNote = async (doc: Document): Promise<{ noteId: string; url: string } | null> => {
     if (!hedgedocBaseUrl) return null;
 
-    const meta = (doc.other as DocumentWorkflowMeta) || {};
-    if (meta.hedgedoc_note_id && meta.hedgedoc_url) {
-      return { noteId: meta.hedgedoc_note_id, url: meta.hedgedoc_url };
-    }
-
-    const response = await fetch('/api/hedgedoc/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: doc.title || defaultTitle,
-        initialContent: meta.markdown_content || '',
-      }),
-    });
+    const response = await fetch(`/api/documents/${doc.id}/hedgedoc`, { method: 'POST' });
 
     if (!response.ok) {
       throw new Error('Failed to create HedgeDoc note');
     }
 
-    const data = (await response.json()) as { noteId: string; url: string };
-
-    const effectiveTenantId = tenantId || await getTenantIdClient();
-
-    await createClient()
-      .from('document')
-      .update({
-        other: {
-          ...meta,
-          hedgedoc_note_id: data.noteId,
-          hedgedoc_url: data.url,
-        },
-      })
-      .eq('id', doc.id)
-      .eq('tenant_id', effectiveTenantId);
-
-    return data;
+    return (await response.json()) as { noteId: string; url: string };
   };
 
   useEffect(() => {
@@ -121,14 +85,14 @@ export default function Step4Analysis({
     (async () => {
       try {
         if (analysisDoc) {
-          const analysisResult = await ensureHedgeDocNote(analysisDoc, 'Environmental Analysis');
+          const analysisResult = await ensureHedgeDocNote(analysisDoc);
           if (!cancelled && analysisResult) {
             setAnalysisHedgeDocId(analysisResult.noteId);
           }
         }
 
         if (draftDoc) {
-          const draftResult = await ensureHedgeDocNote(draftDoc, 'Applicant Draft Document');
+          const draftResult = await ensureHedgeDocNote(draftDoc);
           if (!cancelled && draftResult) {
             setDraftHedgeDocId(draftResult.noteId);
           }
@@ -154,21 +118,16 @@ export default function Step4Analysis({
     setSaving(true);
 
     try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-      const docMeta = (analysisDoc.other as DocumentWorkflowMeta) || {};
+      const response = await fetch(`/api/documents/${analysisDoc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
 
-      await supabase
-        .from('document')
-        .update({
-          other: {
-            ...docMeta,
-            markdown_content: content,
-            last_edited_by_user_id: userId,
-          },
-        })
-        .eq('id', analysisDoc.id)
-        .eq('tenant_id', effectiveTenantId);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to save');
+      }
 
       setError(null);
     } catch (err) {
@@ -182,163 +141,18 @@ export default function Step4Analysis({
     setLoading(true);
     setError(null);
 
-  try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-
-      // Ensure HedgeDoc notes exist when embedded editor is enabled
-      if (hedgedocBaseUrl) {
-        if (analysisDoc) {
-          const result = await ensureHedgeDocNote(analysisDoc, 'Environmental Analysis');
-          if (result) setAnalysisHedgeDocId(result.noteId);
-        }
-        if (draftDoc) {
-          const result = await ensureHedgeDocNote(draftDoc, 'Applicant Draft Document');
-          if (result) setDraftHedgeDocId(result.noteId);
-        }
-      }
-
-      // 1. Save document content
-      if (analysisDoc) {
-        const docMeta = (analysisDoc.other as DocumentWorkflowMeta) || {};
-        await supabase
-          .from('document')
-          .update({
-            status: 'submitted',
-            other: {
-              ...docMeta,
-              markdown_content: hedgedocBaseUrl ? docMeta.markdown_content : content,
-              last_edited_by_user_id: userId,
-            },
-          })
-          .eq('id', analysisDoc.id)
-          .eq('tenant_id', effectiveTenantId);
-      }
-
-      // 2. Create decision payload
-      await supabase.from('process_decision_payload').insert({
-        tenant_id: effectiveTenantId,
-        process_decision_element: 4,
-        process: processInstance.id,
-        project: project.id,
-        result: 'completed',
-        result_bool: true,
-        evaluation_data: {
-          document_id: analysisDoc?.id,
-          submitted_at: new Date().toISOString(),
-          is_revision: isRevision,
-        },
+    try {
+      const response = await fetch(`/api/cases/${processInstance.id}/steps/4`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
       });
+      const body = await response.json();
 
-      // 3. Mark current task as completed
-      if (task) {
-        await supabase
-          .from('case_event')
-          .update({
-            status: 'completed',
-            outcome: 'completed',
-            other: {
-              ...taskMeta,
-              completed_by: userId,
-              completed_at: new Date().toISOString(),
-            },
-          })
-          .eq('id', task.id)
-          .eq('tenant_id', effectiveTenantId);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to complete step');
       }
 
-      // 4. Update process instance to step 5
-      const processMeta: ProcessInstanceWorkflowMeta = {
-        ...(processInstance.other as ProcessInstanceWorkflowMeta || {}),
-        current_step: 5,
-        workflow_status: 'pending_approval',
-      };
-
-      await supabase
-        .from('process_instance')
-        .update({
-          stage: 'Step 5: Approval',
-          other: processMeta as unknown as Record<string, unknown>,
-        })
-        .eq('id', processInstance.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      // 5. Find an approver to assign (exclude applicant and analyst - can't approve your own work)
-      const projectMeta = (project.other as ProjectWorkflowMeta) || {};
-      const applicantId = projectMeta.applicant_user_id;
-      const analystId = projectMeta.analyst_user_id;
-      let approverId = projectMeta.approver_user_id;
-
-      if (!approverId) {
-        // Find an approver who is NOT the applicant or analyst
-        const { data: approverAssignments } = await supabase
-          .from('user_assignments')
-            .select('user_id')
-            .eq('tenant_id', effectiveTenantId)
-            .eq('user_role', 3); // Approver role
-
-        // Filter out the applicant and analyst
-        const availableApprovers = (approverAssignments || []).filter(
-          (a: { user_id: string | null }) => a.user_id !== applicantId && a.user_id !== analystId
-        );
-
-        approverId = availableApprovers[0]?.user_id || '';
-
-        // Update project with approver
-        if (approverId) {
-          await supabase
-            .from('project')
-              .update({
-              other: {
-                ...projectMeta,
-                approver_user_id: approverId,
-              },
-              })
-              .eq('id', project.id)
-              .eq('tenant_id', effectiveTenantId);
-        }
-      }
-
-      // 6. Create task for step 5 (Approver)
-      const newTaskMeta: CaseEventWorkflowMeta = {
-        step_number: 5,
-        decision_element_id: 5,
-        assigned_user_id: approverId || '',
-        assigned_role_id: 3, // Approver
-        task_type: 'approval',
-      };
-
-      await supabase.from('case_event').insert({
-        tenant_id: effectiveTenantId,
-        parent_process_id: processInstance.id,
-        name: 'Review and Approve',
-        description: `Review the environmental analysis for "${project.title}"`,
-        type: 'task',
-        tier: 5,
-        status: 'pending',
-        assigned_entity: approverId || '',
-        other: newTaskMeta as unknown as Record<string, unknown>,
-      });
-
-      // 7. Create notification for approver
-      if (approverId) {
-        await supabase.from('case_event').insert({
-          tenant_id: effectiveTenantId,
-          parent_process_id: processInstance.id,
-          name: 'Approval Required',
-          description: `Environmental analysis for "${project.title}" is ready for approval`,
-          type: 'notification',
-          status: 'pending',
-          assigned_entity: approverId,
-          other: {
-            notification_type: 'approval_required',
-            project_id: project.id,
-            read: false,
-          },
-        });
-      }
-
-      // Navigate to case detail
       router.push(`/case/${processInstance.id}`);
       router.refresh();
     } catch (err) {

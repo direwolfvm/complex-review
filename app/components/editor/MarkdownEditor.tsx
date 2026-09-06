@@ -24,7 +24,7 @@ export default function MarkdownEditor({
 
   // Simple markdown to HTML conversion for preview
   const renderMarkdown = (text: string): string => {
-    let html = text
+    const html = text
       // Escape HTML
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

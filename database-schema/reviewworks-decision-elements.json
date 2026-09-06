@@ -1,0 +1,371 @@
+[
+  {
+    "id": 1,
+    "process_model": 1,
+    "process_model_internal_reference_id": "reviewworks-step-1-authentication",
+    "title": "User ID",
+    "description": "Authenticated user identity captured when the case is created. Recorded automatically; there is no form for this element.",
+    "category": "input",
+    "measure": "Complete",
+    "threshold": 1,
+    "spatial": false,
+    "intersect": false,
+    "data_source_system": "reviewworks",
+    "other": {
+      "step_number": 1,
+      "responsible_role": 1
+    },
+    "form_data": null,
+    "expected_evaluation_data": {
+      "type": "object",
+      "title": "Authentication",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "Supabase auth user id of the case creator"
+        },
+        "authenticated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  {
+    "id": 2,
+    "process_model": 1,
+    "process_model_internal_reference_id": "reviewworks-step-2-project-information",
+    "title": "Project Information",
+    "description": "Core project details supplied by the applicant. form_data is the JSON Schema the step 2 form renders.",
+    "category": "input",
+    "measure": "Complete",
+    "threshold": 1,
+    "spatial": false,
+    "intersect": false,
+    "data_source_system": "reviewworks",
+    "other": {
+      "step_number": 2,
+      "responsible_role": 1
+    },
+    "form_data": {
+      "type": "object",
+      "title": "Project",
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "title": "ID",
+          "description": "database id"
+        },
+        "created_at": {
+          "type": "string",
+          "title": "Created At",
+          "format": "date-time",
+          "description": "created"
+        },
+        "title": {
+          "type": "string",
+          "title": "Title",
+          "description": "Descriptive name of the project."
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "Summary of the project\u2019s goals and scope."
+        },
+        "sector": {
+          "type": "string",
+          "title": "Sector",
+          "description": "High-level project category (e.g., energy, transportation, land management)."
+        },
+        "lead_agency": {
+          "type": "string",
+          "title": "Lead Agency",
+          "description": "Federal agency that supervises preparation of the environmental documents for the project."
+        },
+        "participating_agencies": {
+          "type": "string",
+          "title": "Participating Agencies",
+          "description": "Other involved agencies."
+        },
+        "location_lat": {
+          "type": "number",
+          "title": "Location Latitude",
+          "description": "Center/centroid of project (shortcut for plotting on a map - should attach GIS data object as well)"
+        },
+        "location_lon": {
+          "type": "number",
+          "title": "Location Longitude",
+          "description": "Center/centroid of project (shortcut for plotting on a map - should attach GIS data object as well)"
+        },
+        "location_object": {
+          "type": "object",
+          "title": "Location Object",
+          "description": "Container for more advanced location object if applicable or if this improves performance (should not replace gis data entity relationship)"
+        },
+        "type": {
+          "type": "string",
+          "title": "Type",
+          "description": "Classification, a sub-type of sector (pipeline, highway, habitat restoration)."
+        },
+        "funding": {
+          "type": "string",
+          "title": "Funding",
+          "description": "Link to federal, state, local or other funding by reference (e.g., grant program, loan guarantee, appropriated funds)"
+        },
+        "start_date": {
+          "type": "string",
+          "title": "Start Date",
+          "format": "date",
+          "description": "Environmental review initiation date (aggregated from process status)"
+        },
+        "current_status": {
+          "type": "string",
+          "title": "Current Status",
+          "description": "Current phase (pre-application, underway, paused, completed) of the NEPA, permitting, or other authorization process (aggregated from process status)."
+        },
+        "sponsor": {
+          "type": "string",
+          "title": "Sponsor",
+          "description": "Name of responsible entity, organization, or person."
+        },
+        "sponsor_contact": {
+          "type": "object",
+          "title": "Sponsor Contact",
+          "description": "Name of responsible entity, organization, or person (contact information json object)"
+        },
+        "parent_project_id": {
+          "type": "integer",
+          "title": "Parent Project ID",
+          "description": "If nesting projects, reference to the parent project's ID."
+        },
+        "location_text": {
+          "type": "string",
+          "title": "Location Text",
+          "description": "Text field to specify location, eg. address."
+        },
+        "other": {
+          "type": "object",
+          "title": "Other",
+          "description": "This jsonb field should be used for additional data structures as needed."
+        },
+        "data_record_version": {
+          "type": "string",
+          "title": "Data Record Version",
+          "description": "This is the version of this data record."
+        },
+        "data_source_agency": {
+          "type": "string",
+          "title": "Data Source Agency",
+          "description": "This is the agency from which this data record was sent or retrieved or in which it is stored, which may be different than the record owner."
+        },
+        "data_source_system": {
+          "type": "string",
+          "title": "Data Source System",
+          "description": "This is the system from which this data record was sent or retrieved or in which it is stored."
+        },
+        "last_updated": {
+          "type": "string",
+          "title": "Last Updated",
+          "format": "date-time",
+          "description": "This is the last update of the data record in the system."
+        },
+        "record_owner_agency": {
+          "type": "string",
+          "title": "Record Owner Agency",
+          "description": "This is the owner of the original data, generally the authoritative data source."
+        },
+        "retrieved_timestamp": {
+          "type": "string",
+          "title": "Retrieved Timestamp",
+          "format": "date-time",
+          "description": "This is the timestamp of a retrieval or transmission (e.g. responding to an API call)."
+        }
+      }
+    },
+    "expected_evaluation_data": {
+      "type": "object",
+      "title": "ProjectInformation",
+      "properties": {
+        "type": {
+          "type": "string",
+          "title": "Type",
+          "description": "Classification, a sub-type of sector (pipeline, highway, habitat restoration)."
+        },
+        "title": {
+          "type": "string",
+          "title": "Title",
+          "description": "Descriptive name of the project."
+        },
+        "sector": {
+          "type": "string",
+          "title": "Sector",
+          "description": "High-level project category (e.g., energy, transportation, land management)."
+        },
+        "funding": {
+          "type": "string",
+          "title": "Funding",
+          "description": "Link to federal, state, local or other funding by reference (e.g., grant program, loan guarantee, appropriated funds)"
+        },
+        "sponsor": {
+          "type": "string",
+          "title": "Sponsor",
+          "description": "Name of responsible entity, organization, or person."
+        },
+        "start_date": {
+          "type": "string",
+          "title": "Start Date",
+          "format": "date",
+          "description": "Environmental review initiation date (aggregated from process status)"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "Summary of the project\u2019s goals and scope."
+        },
+        "lead_agency": {
+          "type": "string",
+          "title": "Lead Agency",
+          "description": "Federal agency that supervises preparation of the environmental documents for the project."
+        },
+        "location_lat": {
+          "type": "number",
+          "title": "Location Latitude",
+          "description": "Center/centroid of project (shortcut for plotting on a map - should attach GIS data object as well)"
+        },
+        "location_lon": {
+          "type": "number",
+          "title": "Location Longitude",
+          "description": "Center/centroid of project (shortcut for plotting on a map - should attach GIS data object as well)"
+        },
+        "location_text": {
+          "type": "string",
+          "title": "Location Text",
+          "description": "Text field to specify location, eg. address."
+        },
+        "current_status": {
+          "type": "string",
+          "title": "Current Status",
+          "description": "Current phase (pre-application, underway, paused, completed) of the NEPA, permitting, or other authorization process (aggregated from process status)."
+        },
+        "sponsor_contact": {
+          "type": "object",
+          "title": "Sponsor Contact",
+          "description": "Name of responsible entity, organization, or person (contact information json object)"
+        },
+        "participating_agencies": {
+          "type": "string",
+          "title": "Participating Agencies",
+          "description": "Other involved agencies."
+        }
+      },
+      "description": "The project fields the step 2 form submits, after system fields are filtered out."
+    }
+  },
+  {
+    "id": 3,
+    "process_model": 1,
+    "process_model_internal_reference_id": "reviewworks-step-3-applicant-document",
+    "title": "Analysis Document",
+    "description": "Draft project analysis prepared by the applicant. Submitted as a document record rather than a form.",
+    "category": "document",
+    "measure": "Complete",
+    "threshold": 1,
+    "spatial": false,
+    "intersect": false,
+    "data_source_system": "reviewworks",
+    "other": {
+      "step_number": 3,
+      "responsible_role": 1
+    },
+    "form_data": null,
+    "expected_evaluation_data": {
+      "type": "object",
+      "title": "DocumentSubmission",
+      "properties": {
+        "document_id": {
+          "type": "integer"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  {
+    "id": 4,
+    "process_model": 1,
+    "process_model_internal_reference_id": "reviewworks-step-4-environmental-review",
+    "title": "Environmental Review",
+    "description": "Environmental analysis prepared by an agency analyst. The analyst must not be the case creator.",
+    "category": "document",
+    "measure": "Complete",
+    "threshold": 1,
+    "spatial": false,
+    "intersect": false,
+    "data_source_system": "reviewworks",
+    "other": {
+      "step_number": 4,
+      "responsible_role": 2
+    },
+    "form_data": null,
+    "expected_evaluation_data": {
+      "type": "object",
+      "title": "DocumentSubmission",
+      "properties": {
+        "document_id": {
+          "type": "integer"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  {
+    "id": 5,
+    "process_model": 1,
+    "process_model_internal_reference_id": "reviewworks-step-5-approval",
+    "title": "Approval",
+    "description": "Final approval decision. The approver must be neither the case creator nor the analyst who prepared the review.",
+    "category": "approval",
+    "measure": "Complete",
+    "threshold": 1,
+    "spatial": false,
+    "intersect": false,
+    "data_source_system": "reviewworks",
+    "other": {
+      "step_number": 5,
+      "responsible_role": 3
+    },
+    "form_data": null,
+    "expected_evaluation_data": {
+      "type": "object",
+      "title": "ApprovalDecision",
+      "properties": {
+        "approved_at": {
+          "type": "string",
+          "title": "Approved At",
+          "format": "date-time",
+          "description": "Set when the decision is approval."
+        },
+        "approver_id": {
+          "type": "string",
+          "title": "Approver ID",
+          "description": "Auth user id of the approver."
+        },
+        "decision_at": {
+          "type": "string",
+          "title": "Decision At",
+          "format": "date-time",
+          "description": "Set when changes are requested instead."
+        }
+      },
+      "description": "Written on approval; result carries \"approved\" or \"changes_requested\" and result_notes the comments."
+    }
+  }
+]
