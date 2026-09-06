@@ -34,6 +34,7 @@ export default async function DashboardPage() {
   const { data: assignments } = await supabase
     .from('user_assignments')
     .select('user_role')
+    .eq('tenant_id', tenantId)
     .eq('user_id', user.id);
 
   const roleIds = assignments?.map(a => a.user_role) || [];

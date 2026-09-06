@@ -25,6 +25,19 @@ import type {
 
 const DEFAULT_PROCESS_MODEL_ID = 1;
 
+/**
+ * Required role per step, matching the access rules documented on canUserAccessStep.
+ * The decision_element catalog is the source of truth when it is readable; this is the
+ * fallback used when it is not, so that a missing or unreadable catalog cannot silently
+ * drop the separation-of-duties check.
+ */
+const STEP_REQUIRED_ROLE: Record<number, number> = {
+  2: 1, // Applicant
+  3: 1, // Applicant
+  4: 2, // Analyst
+  5: 3, // Approver
+};
+
 interface InitializeCaseResult {
   project: Project;
   processInstance: ProcessInstance;
@@ -673,12 +686,14 @@ export async function canUserAccessStep(
     .eq('tenant_id', tenantId)
     .single();
 
-  const requiredRole = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>) || null;
+  const catalogRole = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>);
+  const requiredRole = catalogRole ?? STEP_REQUIRED_ROLE[stepNumber] ?? null;
   const userRoles = await getUserRoles(supabase, userId, tenantId);
 
-  // If no required role is set, anyone can access
+  // Fail closed. A missing decision element means we cannot establish who this step
+  // belongs to, so deny rather than admit everyone.
   if (!requiredRole) {
-    return { canAccess: true, requiredRole: null, userRoles };
+    return { canAccess: false, requiredRole: null, userRoles };
   }
 
   // Get process instance to find the case creator (applicant)
