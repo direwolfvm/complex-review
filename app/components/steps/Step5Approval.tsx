@@ -2,29 +2,19 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { getTenantIdClient } from '@/lib/tenant/client';
-import type { Project, ProcessInstance, DecisionElement, CaseEvent, Document, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, DocumentWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
+import type { ProcessInstance, DecisionElement, Document, DocumentWorkflowMeta } from '@/lib/types/database';
 
 interface Step5ApprovalProps {
   processInstance: ProcessInstance;
-  project: Project;
   decisionElement: DecisionElement | null;
   currentStep: number;
-  userId: string;
-  tenantId: string;
-  task: CaseEvent | null;
   documents: Document[];
 }
 
 export default function Step5Approval({
   processInstance,
-  project,
   decisionElement,
   currentStep,
-  userId,
-  tenantId,
-  task,
   documents,
 }: Step5ApprovalProps) {
   const router = useRouter();
@@ -41,108 +31,8 @@ export default function Step5Approval({
     [documents]
   );
 
-  const handleApprove = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-      const taskMeta = (task?.other as CaseEventWorkflowMeta) || {};
-      const projectMeta = (project.other as ProjectWorkflowMeta) || {};
-
-      // 1. Mark approval task as completed
-      if (task) {
-        await supabase
-          .from('case_event')
-          .update({
-            status: 'completed',
-            outcome: 'approved',
-            other: {
-              ...taskMeta,
-              completed_by: userId,
-              completed_at: new Date().toISOString(),
-              approval_decision: 'approved',
-              approval_comments: comments,
-            },
-          })
-          .eq('id', task.id)
-          .eq('tenant_id', effectiveTenantId);
-      }
-
-      // 2. Create decision payload
-      await supabase.from('process_decision_payload').insert({
-        tenant_id: effectiveTenantId,
-        process_decision_element: 5,
-        process: processInstance.id,
-        project: project.id,
-        result: 'approved',
-        result_bool: true,
-        result_notes: comments,
-        evaluation_data: {
-          approver_id: userId,
-          approved_at: new Date().toISOString(),
-        },
-      });
-
-      // 3. Update process instance to completed/approved
-      const processMeta: ProcessInstanceWorkflowMeta = {
-        ...(processInstance.other as ProcessInstanceWorkflowMeta || {}),
-        current_step: 6, // Beyond 5 = completed
-        workflow_status: 'approved',
-      };
-
-      await supabase
-        .from('process_instance')
-        .update({
-          status: 'completed',
-          stage: 'Approved',
-          outcome: 'approved',
-          complete_date: new Date().toISOString().split('T')[0],
-          other: processMeta as unknown as Record<string, unknown>,
-        })
-        .eq('id', processInstance.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      // 4. Update project status
-      await supabase
-        .from('project')
-        .update({
-          current_status: 'approved',
-        })
-        .eq('id', project.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      // 5. Notify analyst of approval
-      const analystId = projectMeta.analyst_user_id;
-      if (analystId) {
-        await supabase.from('case_event').insert({
-          tenant_id: effectiveTenantId,
-          parent_process_id: processInstance.id,
-          name: 'Case Approved',
-          description: `Your environmental analysis for "${project.title}" has been approved!${comments ? ` Comment: ${comments}` : ''}`,
-          type: 'notification',
-          status: 'pending',
-          assigned_entity: analystId,
-          other: {
-            notification_type: 'approved',
-            project_id: project.id,
-            read: false,
-          },
-        });
-      }
-
-      // Navigate to case detail
-      router.push(`/case/${processInstance.id}`);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve');
-      setLoading(false);
-    }
-  };
-
-  const handleRequestChanges = async () => {
-    if (!comments.trim()) {
+  const submitDecision = async (decision: 'approved' | 'changes_requested') => {
+    if (decision === 'changes_requested' && !comments.trim()) {
       setError('Please provide feedback on what changes are needed');
       return;
     }
@@ -151,112 +41,28 @@ export default function Step5Approval({
     setError(null);
 
     try {
-      const supabase = createClient();
-      const effectiveTenantId = tenantId || await getTenantIdClient();
-      const taskMeta = (task?.other as CaseEventWorkflowMeta) || {};
-      const projectMeta = (project.other as ProjectWorkflowMeta) || {};
+      const response = await fetch(`/api/cases/${processInstance.id}/approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, comments }),
+      });
+      const body = await response.json();
 
-      // 1. Mark approval task as completed with changes requested
-      if (task) {
-        await supabase
-          .from('case_event')
-          .update({
-            status: 'completed',
-            outcome: 'changes_requested',
-            other: {
-              ...taskMeta,
-              completed_by: userId,
-              completed_at: new Date().toISOString(),
-              approval_decision: 'changes_requested',
-              approval_comments: comments,
-            },
-          })
-          .eq('id', task.id)
-          .eq('tenant_id', effectiveTenantId);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to record decision');
       }
 
-      // 2. Create decision payload
-      await supabase.from('process_decision_payload').insert({
-        tenant_id: effectiveTenantId,
-        process_decision_element: 5,
-        process: processInstance.id,
-        project: project.id,
-        result: 'changes_requested',
-        result_bool: false,
-        result_notes: comments,
-        evaluation_data: {
-          approver_id: userId,
-          decision_at: new Date().toISOString(),
-        },
-      });
-
-      // 3. Update process instance back to step 4
-      const processMeta: ProcessInstanceWorkflowMeta = {
-        ...(processInstance.other as ProcessInstanceWorkflowMeta || {}),
-        current_step: 4,
-        workflow_status: 'in_progress',
-      };
-
-      await supabase
-        .from('process_instance')
-        .update({
-          stage: 'Step 4: Analyst Review (Revision)',
-          other: processMeta as unknown as Record<string, unknown>,
-        })
-        .eq('id', processInstance.id)
-        .eq('tenant_id', effectiveTenantId);
-
-      // 4. Create new task for analyst with revision request
-      const analystId = projectMeta.analyst_user_id || '';
-      const newTaskMeta: CaseEventWorkflowMeta = {
-        step_number: 4,
-        decision_element_id: 4,
-        assigned_user_id: analystId,
-        assigned_role_id: 2,
-        task_type: 'document',
-        revision_requested: true,
-        revision_comments: comments,
-        revision_requested_by: userId,
-      } as CaseEventWorkflowMeta & { revision_requested: boolean; revision_comments: string; revision_requested_by: string };
-
-      await supabase.from('case_event').insert({
-        tenant_id: effectiveTenantId,
-        parent_process_id: processInstance.id,
-        name: 'Revise Environmental Review',
-        description: `Revisions requested: ${comments}`,
-        type: 'task',
-        tier: 4,
-        status: 'pending',
-        assigned_entity: analystId,
-        other: newTaskMeta as unknown as Record<string, unknown>,
-      });
-
-      // 5. Notify analyst of revision request
-      if (analystId) {
-        await supabase.from('case_event').insert({
-          tenant_id: effectiveTenantId,
-          parent_process_id: processInstance.id,
-          name: 'Revisions Requested',
-          description: `Your environmental analysis for "${project.title}" requires revisions: ${comments}`,
-          type: 'notification',
-          status: 'pending',
-          assigned_entity: analystId,
-          other: {
-            notification_type: 'revision_requested',
-            project_id: project.id,
-            read: false,
-          },
-        });
-      }
-
-      // Navigate to case detail
       router.push(`/case/${processInstance.id}`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to request changes');
+      setError(err instanceof Error ? err.message : 'Failed to record decision');
       setLoading(false);
     }
   };
+
+  const handleApprove = () => submitDecision('approved');
+  const handleRequestChanges = () => submitDecision('changes_requested');
+
 
   const isCurrentStep = currentStep === 5;
   const isCompleted = currentStep > 5 || processInstance.status === 'completed';
