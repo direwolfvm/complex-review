@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getTenantIdClient } from '@/lib/tenant/client';
+import { resolveProcessModelId } from '@/lib/workflow/process-model';
 import type { ProjectWorkflowMeta, ProcessInstanceWorkflowMeta, CaseEventWorkflowMeta } from '@/lib/types/database';
 
 export default function NewCasePage() {
@@ -18,6 +19,7 @@ export default function NewCasePage() {
     try {
       const supabase = createClient();
       const tenantId = await getTenantIdClient();
+      const processModelId = await resolveProcessModelId(supabase, tenantId);
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -55,7 +57,7 @@ export default function NewCasePage() {
         .insert({
           tenant_id: tenantId,
           parent_project_id: project.id,
-          process_model: 1,
+          process_model: processModelId,
           status: 'underway',
           stage: 'Step 2: Project Information',
           start_date: new Date().toISOString().split('T')[0],

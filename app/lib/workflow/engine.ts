@@ -22,8 +22,13 @@ import type {
   ProjectWorkflowMeta,
   DocumentWorkflowMeta,
 } from '@/lib/types/database';
+import { resolveProcessModelId } from '@/lib/workflow/process-model';
 
-const DEFAULT_PROCESS_MODEL_ID = 1;
+/**
+ * The workflow runs steps 2 through 5. Step 1 is authentication, handled by Supabase
+ * Auth before a case exists.
+ */
+const LAST_STEP = 5;
 
 /**
  * Required role per step, matching the access rules documented on canUserAccessStep.
@@ -36,6 +41,13 @@ const STEP_REQUIRED_ROLE: Record<number, number> = {
   3: 1, // Applicant
   4: 2, // Analyst
   5: 3, // Approver
+};
+
+const STEP_NAMES: Record<number, string> = {
+  2: 'Step 2: Project Information',
+  3: 'Step 3: Applicant Document',
+  4: 'Step 4: Analyst Review',
+  5: 'Step 5: Approval',
 };
 
 interface InitializeCaseResult {
@@ -67,8 +79,10 @@ export async function initializeCase(
   supabase: SupabaseClient<any>,
   userId: string,
   tenantId: string,
-  processModelId: number = DEFAULT_PROCESS_MODEL_ID
+  processModelId?: number
 ): Promise<InitializeCaseResult> {
+  const modelId = processModelId ?? await resolveProcessModelId(supabase, tenantId);
+
   // 1. Create the project with applicant reference
   const projectMeta: ProjectWorkflowMeta = {
     applicant_user_id: userId,
@@ -100,7 +114,7 @@ export async function initializeCase(
     .insert({
       tenant_id: tenantId,
       parent_project_id: project.id,
-      process_model: processModelId,
+      process_model: modelId,
       status: 'underway',
       stage: 'Step 2: Project Information',
       start_date: new Date().toISOString().split('T')[0],
@@ -250,16 +264,10 @@ export async function advanceToStep(
   const project = processInstance.project as unknown as Project;
   const projectMeta = (project?.other as ProjectWorkflowMeta) || {};
 
-  // Get decision element for the step
-  const { data: decisionElement } = await supabase
-    .from('decision_element')
-    .select('*')
-    .eq('id', stepNumber)
-    .eq('tenant_id', tenantId)
-    .single();
-
-  if (!decisionElement) {
-    // Process is complete
+  // Completion is decided by the step number, never by the absence of a decision
+  // element. An unreadable or incomplete catalog must not be able to mark a process
+  // approved on its own.
+  if (stepNumber > LAST_STEP) {
     await supabase
       .from('process_instance')
       .update({
@@ -285,9 +293,21 @@ export async function advanceToStep(
     return { updatedProcess: updatedProcess! };
   }
 
+  // The catalog supplies the task title and the responsible role. When it is missing we
+  // fall back to the built-in step definitions, so the workflow keeps its assignment
+  // rules instead of handing the step to whoever triggered it.
+  const { data: decisionElement } = await supabase
+    .from('decision_element')
+    .select('*')
+    .eq('id', stepNumber)
+    .eq('tenant_id', tenantId)
+    .single();
+
   // Determine assigned user based on role
   let assignedUserId = initiatingUserId;
-  const roleId = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>);
+  const roleId = getDecisionElementResponsibleRole(decisionElement as unknown as Record<string, unknown>)
+    ?? STEP_REQUIRED_ROLE[stepNumber]
+    ?? null;
   const applicantId = projectMeta.applicant_user_id || '';
 
   if (roleId === 2) {
@@ -300,23 +320,16 @@ export async function advanceToStep(
   }
 
   // Update process instance stage
-  const stepNames: Record<number, string> = {
-    2: 'Step 2: Project Information',
-    3: 'Step 3: Applicant Document',
-    4: 'Step 4: Analyst Review',
-    5: 'Step 5: Approval',
-  };
-
   const processMeta: ProcessInstanceWorkflowMeta = {
     ...(processInstance.other as ProcessInstanceWorkflowMeta || {}),
     current_step: stepNumber,
-    workflow_status: stepNumber === 5 ? 'pending_approval' : 'in_progress',
+    workflow_status: stepNumber === LAST_STEP ? 'pending_approval' : 'in_progress',
   };
 
   await supabase
     .from('process_instance')
     .update({
-      stage: stepNames[stepNumber] || `Step ${stepNumber}`,
+      stage: STEP_NAMES[stepNumber] || `Step ${stepNumber}`,
       other: processMeta as unknown as Record<string, unknown>,
     })
     .eq('id', processInstanceId)
@@ -337,8 +350,8 @@ export async function advanceToStep(
     .insert({
       tenant_id: tenantId,
       parent_process_id: processInstanceId,
-      name: decisionElement.title || `Step ${stepNumber}`,
-      description: decisionElement.description,
+      name: decisionElement?.title || STEP_NAMES[stepNumber] || `Step ${stepNumber}`,
+      description: decisionElement?.description ?? null,
       type: 'task',
       tier: stepNumber,
       status: 'pending',

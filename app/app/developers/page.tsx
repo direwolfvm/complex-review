@@ -302,6 +302,23 @@ function ProcessTab() {
       </div>
 
       <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Resolve the process model first</h3>
+        <p className="text-gray-600 mb-2">
+          Process model IDs come from a sequence shared by every tenant in the project, so an ID on
+          its own is not stable. Look yours up by tenant and title rather than hardcoding a number.
+        </p>
+        <CodeBlock
+          language="bash"
+          code={`curl -G "{SUPABASE_URL}/rest/v1/process_model" \\
+  -H "apikey: {SUPABASE_ANON_KEY}" \\
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \\
+  --data-urlencode "select=id" \\
+  --data-urlencode "tenant_id=eq.{TENANT_ID}" \\
+  --data-urlencode "title=eq.Complex Environmental Review"`}
+        />
+      </div>
+
+      <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Request</h3>
         <CodeBlock
           language="bash"
@@ -312,7 +329,7 @@ function ProcessTab() {
   -H "Prefer: return=representation" \\
   -d '{
     "parent_project_id": {PROJECT_ID},
-    "process_model": 1,
+    "process_model": {PROCESS_MODEL_ID},
     "status": "underway",
     "stage": "Step 2: Project Information",
     "start_date": "2026-01-15",
@@ -338,7 +355,7 @@ function ProcessTab() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               <tr><td className="px-4 py-3 text-sm font-mono">parent_project_id</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Project ID</td></tr>
-              <tr><td className="px-4 py-3 text-sm font-mono">process_model</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Use 1 for standard workflow</td></tr>
+              <tr><td className="px-4 py-3 text-sm font-mono">process_model</td><td className="px-4 py-3 text-sm">bigint</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Resolve by tenant_id + title; do not hardcode</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">status</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">&quot;underway&quot; for active processes</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">stage</td><td className="px-4 py-3 text-sm">text</td><td className="px-4 py-3 text-sm">No</td><td className="px-4 py-3 text-sm text-gray-500">Human-readable stage</td></tr>
               <tr><td className="px-4 py-3 text-sm font-mono">other</td><td className="px-4 py-3 text-sm">jsonb</td><td className="px-4 py-3 text-sm">Yes</td><td className="px-4 py-3 text-sm text-gray-500">Workflow state metadata</td></tr>
