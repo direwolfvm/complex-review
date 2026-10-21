@@ -114,7 +114,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/case/new"
-          className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -230,7 +230,7 @@ export default async function DashboardPage() {
                 <Link
                   key={c.id}
                   href={`/case/${c.id}`}
-                  className="block bg-white rounded-lg border border-green-100 p-4 hover:border-green-300 hover:shadow-sm transition-all"
+                  className="block bg-white rounded-lg border border-green-100 p-4 hover:border-green-300 hover:shadow-xs transition-all"
                 >
                   <div className="flex justify-between items-start">
                     <h3 className="text-sm font-medium text-gray-900">

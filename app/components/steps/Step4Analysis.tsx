@@ -225,7 +225,7 @@ export default function Step4Analysis({
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setShowDraft(!showDraft)}
-                  className={`px-3 py-1 rounded text-sm ${showDraft ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600'}`}
+                  className={`px-3 py-1 rounded-sm text-sm ${showDraft ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600'}`}
                 >
                   {showDraft ? 'Hide' : 'Show'} Applicant Draft
                 </button>
@@ -255,7 +255,7 @@ export default function Step4Analysis({
                       )}
                     </div>
                   ) : (
-                    <div className="prose prose-sm max-w-none overflow-y-auto max-h-[600px] bg-white p-4 rounded border">
+                    <div className="prose prose-sm max-w-none overflow-y-auto max-h-[600px] bg-white p-4 rounded-sm border">
                       <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
                         {draftMeta?.markdown_content || 'No content'}
                       </pre>

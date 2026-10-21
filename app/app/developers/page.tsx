@@ -127,7 +127,7 @@ Prefer: return=representation`}
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Tenant ID</h3>
         <p className="text-gray-600 mb-2">
           Review Works shares its database with other permitting portals, so <strong>every row you
-          create must carry a <code className="bg-gray-100 px-1 rounded">tenant_id</code></strong>.
+          create must carry a <code className="bg-gray-100 px-1 rounded-sm">tenant_id</code></strong>.
           Writes that omit it are rejected by row-level security. Resolve it once by slug and reuse
           it for the rest of the integration:
         </p>
@@ -141,7 +141,7 @@ Prefer: return=representation`}
         />
         <p className="text-gray-600 mt-2">
           For the same reason, filter every read by{' '}
-          <code className="bg-gray-100 px-1 rounded">tenant_id</code> as well, and never assume a
+          <code className="bg-gray-100 px-1 rounded-sm">tenant_id</code> as well, and never assume a
           numeric ID from one table belongs to your tenant.
         </p>
       </div>
@@ -164,9 +164,9 @@ Prefer: return=representation`}
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Decision Elements (Workflow Steps)</h3>
         <p className="text-gray-600 mb-2">
           The Review Works workflow has 5 decision elements. The IDs below identify the step within
-          the workflow; they are not <code className="bg-gray-100 px-1 rounded">decision_element</code> primary keys
+          the workflow; they are not <code className="bg-gray-100 px-1 rounded-sm">decision_element</code> primary keys
           and should not be sent as such.
-          Resolve rows in that table by <code className="bg-gray-100 px-1 rounded">tenant_id</code>{' '}
+          Resolve rows in that table by <code className="bg-gray-100 px-1 rounded-sm">tenant_id</code>{' '}
           and title.
         </p>
         <div className="overflow-x-auto">
@@ -238,9 +238,9 @@ function AuthTab() {
 
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p className="text-sm text-yellow-800">
-          <strong>Important:</strong> Save the <code className="bg-yellow-100 px-1 rounded">access_token</code> and{' '}
-          <code className="bg-yellow-100 px-1 rounded">user.id</code> for subsequent API requests.
-          The user must have the appropriate role assigned in <code className="bg-yellow-100 px-1 rounded">user_assignments</code>.
+          <strong>Important:</strong> Save the <code className="bg-yellow-100 px-1 rounded-sm">access_token</code> and{' '}
+          <code className="bg-yellow-100 px-1 rounded-sm">user.id</code> for subsequent API requests.
+          The user must have the appropriate role assigned in <code className="bg-yellow-100 px-1 rounded-sm">user_assignments</code>.
         </p>
       </div>
     </div>
@@ -253,7 +253,7 @@ function ProjectTab() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Create Project</h2>
         <p className="text-gray-600">
-          Create the project record with case data. The <code className="bg-gray-100 px-1 rounded">other</code> field
+          Create the project record with case data. The <code className="bg-gray-100 px-1 rounded-sm">other</code> field
           stores workflow metadata including the applicant user ID.
         </p>
       </div>
@@ -328,7 +328,7 @@ function ProcessTab() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Create Process Instance</h2>
         <p className="text-gray-600">
-          Create the process instance to track workflow state. The <code className="bg-gray-100 px-1 rounded">other</code> field
+          Create the process instance to track workflow state. The <code className="bg-gray-100 px-1 rounded-sm">other</code> field
           stores the current step and workflow status.
         </p>
       </div>
@@ -418,7 +418,7 @@ function TasksTab() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Tasks & Case Events</h2>
         <p className="text-gray-600">
-          Tasks and events are stored in the <code className="bg-gray-100 px-1 rounded">case_event</code> table.
+          Tasks and events are stored in the <code className="bg-gray-100 px-1 rounded-sm">case_event</code> table.
           Tasks are assigned to users and drive the workflow. Events log milestones.
         </p>
       </div>

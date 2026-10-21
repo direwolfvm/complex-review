@@ -18,12 +18,12 @@ export default async function LandingPage() {
       <PublicHeader user={user} />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-green-700 to-green-900 text-white">
+      <section className="bg-linear-to-br from-green-700 to-green-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left side - Value proposition */}
             <div>
-              <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
+              <h1 className="text-4xl/tight lg:text-5xl font-bold">
                 Streamline Environmental Reviews
               </h1>
               <p className="mt-6 text-xl text-green-100">

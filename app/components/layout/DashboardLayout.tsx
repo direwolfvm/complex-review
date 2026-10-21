@@ -117,7 +117,7 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
             </div>
             <button
               onClick={handleClearCache}
-              className="ml-4 px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded hover:bg-yellow-200"
+              className="ml-4 px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-sm hover:bg-yellow-200"
             >
               Clear Cache & Reload
             </button>
@@ -126,7 +126,7 @@ export default function DashboardLayout({ children, user, tenantId }: DashboardL
       )}
 
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white shadow-xs border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
