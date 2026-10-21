@@ -26,7 +26,7 @@ Additional user-facing features include:
 - Internal Markdown editing, preview, and draft saving
 - Optional HedgeDoc note creation and embedded collaborative editing
 - An OAuth consent endpoint for Supabase OAuth authorization flows
-- Runtime configuration suitable for container deployments
+- Runtime configuration injected from the server environment
 
 See [User guide](docs/USER_GUIDE.md) for the complete product behavior.
 
@@ -37,7 +37,7 @@ See [User guide](docs/USER_GUIDE.md) for the complete product behavior.
 - **Auth and data:** Supabase Auth, PostgREST, and PostgreSQL
 - **Forms:** RJSF with AJV 8 validation
 - **Documents:** application-managed Markdown or optional HedgeDoc
-- **Deployment:** standalone Next.js container; Cloud Run, Cloud Build, and Cloud Foundry assets are included
+- **Deployment:** cloud.gov (Cloud Foundry) with the Node.js buildpack, through a guarded deploy script
 - **Isolation:** one configured tenant slug per deployed app instance; tenant membership gates server-rendered application pages and `tenant_id` scopes runtime records
 
 The current application expects the **canonical tenant-aware Supabase schema**. The SQL and CSV files in `database-schema/` are legacy PIC v1.2.0 bootstrap/reference assets and do not by themselves create the canonical tenant and membership tables.
@@ -46,7 +46,7 @@ See [Architecture](docs/ARCHITECTURE.md) for routes, components, data ownership,
 
 ## Prerequisites
 
-- Node.js 18 or newer (Node.js 20 is recommended)
+- Node.js 22
 - npm
 - A Supabase project containing the canonical tenant-aware schema
 - A tenant whose slug matches the application configuration
@@ -81,7 +81,7 @@ The root `.env.example` is the configuration reference. The app reads `app/.env.
 | `NEXT_PUBLIC_TENANT_SLUG` | Recommended | Browser and server | Tenant selected by browser-side queries; defaults to `reviewworks` |
 | `CANONICAL_TENANT_SLUG` | Recommended | Server | Tenant selected by server-side membership checks; falls back to `NEXT_PUBLIC_TENANT_SLUG`, then `reviewworks` |
 | `NEXT_PUBLIC_APP_BASE_URL` | Production | Browser and server | Public application origin used for redirects and deployment configuration |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server only | Reserved for server-side administrative operations; normal app flows use the user session |
+| `SUPABASE_SECRET_KEY` | Yes | Server only | Supabase secret key (`sb_secret_...`); every write goes through the API routes with it, after the route checks the caller's session and role |
 | `HEDGEDOC_BASE_URL` | Optional | Server | Enables HedgeDoc integration and provides the iframe origin |
 | `HEDGEDOC_API_TOKEN` | Optional | Server only | Bearer token used when creating or reading HedgeDoc notes |
 
@@ -108,25 +108,41 @@ For schema history and the limitations of the bundled SQL, see [Database schema 
 Run commands from `app/`:
 
 ```bash
-npm run dev       # development server
-npm run build     # production build
-npm run start     # start the production server
-npm run lint      # Next.js lint command
-npm test          # Vitest
-npm run test:ui   # Vitest UI
+npm run dev            # development server
+npm run build          # production build
+npm run start          # start the production server
+npm run lint           # ESLint
+npm run typecheck      # TypeScript, no emit
+npm test               # Vitest
+npm run license-check  # production dependency licenses against license-policy.json
+npm run sbom           # CycloneDX SBOM in app/sbom/
+npm run deploy:cloud   # cloud.gov deploy (dry run unless --apply)
 ```
 
-No test files are currently checked in. `npm run build` is the most complete repository-provided verification of application and documentation-adjacent imports.
+## Continuous integration
+
+GitHub Actions runs on every pull request and on pushes to `main`. The workflows need no secrets.
+
+- `.github/workflows/ci.yml`: lint, typecheck, tests, build, production `npm audit` at high severity, license check, SBOM (kept as a build artifact), dependency review on pull requests, and a gitleaks scan of the full history.
+- `.github/workflows/codeql.yml`: CodeQL for JavaScript and TypeScript, also weekly.
+- `.github/dependabot.yml`: weekly grouped npm and GitHub Actions updates.
+
+Actions are pinned to full commit SHAs.
 
 ## Deployment
 
-The repository contains three deployment paths:
+Review Works deploys to cloud.gov as the app `reviewworks`, built with the Node.js buildpack.
 
-- `cloudbuild.yaml` builds and deploys `app/Dockerfile` to Google Cloud Run.
-- `app/deploy.sh` performs an interactive Cloud Run build and deployment.
-- `manifest.yml` references a prebuilt image for Cloud Foundry.
+- **Live target:** `https://reviewworks.app.cloud.gov` (override with `DEPLOY_APP_BASE_URL`)
+- **Health check:** `/api/health`
+- **Command**, from `app/` after `cf login` and `cf target` to the right space:
 
-Cloud Run deployments must provide the Supabase URL/key, both tenant slug variables, and the public application base URL. HedgeDoc variables are optional. The Supabase authentication settings must allow the deployed origin and `/auth/callback` redirect.
+```bash
+npm run deploy:cloud            # dry run: names the variables it will set
+npm run deploy:cloud -- --apply # build, cf push --no-start, set the environment, start
+```
+
+The script reads the hosted environment from `app/.env.cloudgov` (or `DEPLOY_ENV_FILE`), which is never committed or pushed. It requires the Supabase URL, the publishable key and `SUPABASE_SECRET_KEY`, refuses a secret key in the public variable, sets the runtime environment through the cloud.gov API without printing values, and only then starts the app. `manifest.yml` holds no environment values. The Supabase authentication settings must allow the deployed origin and `/auth/callback` redirect.
 
 See [Operations and deployment](docs/OPERATIONS.md) for configuration, data preparation, OAuth, HedgeDoc, migration, troubleshooting, and release checks.
 
@@ -147,12 +163,14 @@ See [Operations and deployment](docs/OPERATIONS.md) for configuration, data prep
 │   ├── components/          # Layout, workflow step, and editor components
 │   ├── docs/                # API documentation
 │   ├── lib/                 # Supabase, tenant, workflow, and type helpers
-│   └── public/              # Static assets
+│   ├── public/              # Static assets
+│   ├── scripts/             # Deploy, SBOM, and license-check scripts
+│   ├── manifest.yml         # cloud.gov manifest
+│   └── license-policy.json  # Allowed production dependency licenses
 ├── database-schema/         # Legacy PIC v1.2.0 SQL and reference exports
 ├── docs/                    # Product, architecture, and operations guides
-├── scripts/                 # One-time data migration utility
-├── cloudbuild.yaml          # Cloud Build / Cloud Run pipeline
-├── manifest.yml             # Cloud Foundry manifest
+├── scripts/                 # One-time data migration utilities
+├── .github/                 # CI, CodeQL, and Dependabot
 └── .env.example             # Configuration reference
 ```
 

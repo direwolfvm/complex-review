@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+.next/cache/
+coverage/
+sbom/
+test-results/
+playwright-report/
+*.test.ts
+lib/test/
+docs/

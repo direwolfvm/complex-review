@@ -1,0 +1,18 @@
+---
+# Deploy with `npm run deploy:cloud -- --apply` (scripts/deploy-cloud.mjs), which builds locally,
+# pushes with this manifest, and sets the runtime environment. Do not put environment values here.
+applications:
+  - name: reviewworks
+    memory: 512M
+    instances: 1
+    disk_quota: 2G
+    buildpacks:
+      - nodejs_buildpack
+    command: npm start
+    health-check-type: http
+    health-check-http-endpoint: /api/health
+    health-check-invocation-timeout: 5
+    env:
+      NODE_ENV: production
+      NPM_CONFIG_PRODUCTION: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
