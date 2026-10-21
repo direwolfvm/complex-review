@@ -5,22 +5,20 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # Wait until a release is 5 days old. Security updates are not delayed.
+    cooldown:
+      default-days: 5
     groups:
+      # The @rjsf packages must move together (one PR), or npm ci fails.
+      rjsf:
+        patterns: ['@rjsf/*']
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      # Type definitions track the runtime major (Node 22 in package.json
-      # engines and the workflows). Bump them together with the runtime.
-      - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
-      # Held until the lint stack supports them: typescript-eslint (via
-      # eslint-config-next) requires typescript <6.1, and eslint-config-next's
-      # bundled import/react/jsx-a11y plugins declare eslint <=9. Remove these
-      # entries when eslint-config-next supports TypeScript 7 and ESLint 10.
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"]
+      # Majors are planned cross-app upgrade waves, not weekly PRs
+      # (playbooks/dependabot.md in direwolfvm/operator). CI npm audit still catches anything hidden.
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
     open-pull-requests-limit: 5
   - package-ecosystem: github-actions
     directory: /
