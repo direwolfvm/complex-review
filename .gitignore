@@ -144,3 +144,9 @@ test-results/
 blob-report/
 .playwright/
 playwright/.cache/
+
+# macOS
+.DS_Store
+
+# Generated SBOM (CI keeps it as a build artifact)
+app/sbom/

@@ -1,0 +1,121 @@
+{
+  "$comment": "License policy for production dependencies. scripts/license-check.mjs reads the installed lockfile and fails on any package whose license is not allowed, not a dual choice recorded here, and not an exception recorded here with the verified license and the date. Development-only dependencies are outside the shipped artifact and not checked. installScripts lists reviewed packages that run an install script.",
+  "allowed": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "0BSD",
+    "CC0-1.0",
+    "Unlicense",
+    "Zlib",
+    "MPL-2.0",
+    "BlueOak-1.0.0",
+    "Python-2.0",
+    "CC-BY-4.0"
+  ],
+  "denied": [
+    "GPL-2.0",
+    "GPL-2.0-only",
+    "GPL-2.0-or-later",
+    "GPL-3.0",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "AGPL-3.0",
+    "AGPL-3.0-only",
+    "AGPL-3.0-or-later",
+    "LGPL-2.1",
+    "LGPL-2.1-only",
+    "LGPL-3.0",
+    "LGPL-3.0-only",
+    "SSPL-1.0",
+    "BUSL-1.1"
+  ],
+  "choices": {},
+  "exceptions": {
+    "compute-gcd": {
+      "declared": null,
+      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
+      "reviewed": "2026-10-21"
+    },
+    "compute-lcm": {
+      "declared": null,
+      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
+      "reviewed": "2026-10-21"
+    },
+    "validate.io-function": {
+      "declared": null,
+      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
+      "reviewed": "2026-10-21"
+    },
+    "validate.io-integer": {
+      "declared": null,
+      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
+      "reviewed": "2026-10-21"
+    },
+    "validate.io-integer-array": {
+      "declared": null,
+      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
+      "reviewed": "2026-10-21"
+    },
+    "validate.io-number": {
+      "declared": null,
+      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
+      "reviewed": "2026-10-21"
+    },
+    "@img/sharp-libvips-linux-x64": {
+      "declared": "LGPL-3.0-or-later",
+      "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    },
+    "@img/sharp-libvips-linuxmusl-x64": {
+      "declared": "LGPL-3.0-or-later",
+      "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    },
+    "@img/sharp-libvips-darwin-arm64": {
+      "declared": "LGPL-3.0-or-later",
+      "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    },
+    "@img/sharp-libvips-darwin-x64": {
+      "declared": "LGPL-3.0-or-later",
+      "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    },
+    "@img/sharp-libvips-linux-arm64": {
+      "declared": "LGPL-3.0-or-later",
+      "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    },
+    "@img/sharp-libvips-linuxmusl-arm64": {
+      "declared": "LGPL-3.0-or-later",
+      "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    },
+    "@img/sharp-wasm32": {
+      "declared": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "verified": "sharp (Apache-2.0) compiled with libvips (LGPL-3.0-or-later, unmodified) to WebAssembly; optional fallback for next's image optimization",
+      "reviewed": "2026-10-21",
+      "optional": true
+    }
+  },
+  "installScripts": {
+    "unrs-resolver": {
+      "reason": "postinstall (napi-postinstall) checks that the platform binary is present; pulled in by eslint-config-next; development only; reviewed",
+      "reviewed": "2026-10-21"
+    },
+    "fsevents": {
+      "reason": "optional macOS file watcher used by the development tooling; npm installs it on darwin only, so it is absent on Linux runners; reviewed",
+      "reviewed": "2026-10-21",
+      "optional": true
+    }
+  }
+}

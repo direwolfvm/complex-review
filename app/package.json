@@ -7,8 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sbom": "node scripts/sbom.mjs",
+    "license-check": "node scripts/license-check.mjs",
+    "deploy:cloud": "node scripts/deploy-cloud.mjs"
   },
   "dependencies": {
     "@rjsf/core": "^5.21.2",
@@ -21,7 +25,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@types/node": "^22.20.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "autoprefixer": "^10.5.5",
@@ -30,6 +34,9 @@
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.17",
     "typescript": "^6.0.3",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Type definitions track the runtime major (Node 22 in package.json
+      # engines and the workflows). Bump them together with the runtime.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      # The CodeQL init and analyze steps must move together.
+      actions:
+        patterns: ["*"]

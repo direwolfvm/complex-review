@@ -37,9 +37,12 @@ From `app/`:
 ```bash
 npm ci
 npm run build
+npm run lint
+npm run typecheck
+npm test
 ```
 
-The package defines `npm test`, but no test files are currently checked in; Vitest exits without running a suite. Run it when tests are added.
+CI runs the same steps on every pull request (see the README's Continuous integration section).
 
 Then exercise one complete case using separate Applicant, Analyst, and Approver users:
 
@@ -50,51 +53,38 @@ Then exercise one complete case using separate Applicant, Analyst, and Approver 
 5. Resubmit and approve.
 6. Confirm the process and project are completed and all records carry the expected `tenant_id`.
 
-## Google Cloud Run
+## cloud.gov
 
-### Cloud Build pipeline
+Review Works runs on cloud.gov as `reviewworks`, staged by the Node.js buildpack (Node 22 from `engines` in `app/package.json`) and started with `npm start`. The platform health check calls `/api/health`, which answers without contacting Supabase.
 
-`cloudbuild.yaml`:
+### Hosted environment file
 
-- obtains `NEXT_PUBLIC_SUPABASE_ANON_KEY` from Secret Manager;
-- builds `app/Dockerfile`;
-- tags and pushes commit-specific and `latest` images;
-- deploys an unauthenticated Cloud Run service on port `8080`; and
-- supplies runtime Supabase, tenant, and application URL variables.
+Create `app/.env.cloudgov` (ignored by git and by `.cfignore`) with the hosted values:
 
-Configure these trigger substitutions:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable key)
+- `SUPABASE_SECRET_KEY` (server-only `sb_secret_...` key; every write goes through the API routes with it)
+- optionally `NEXT_PUBLIC_TENANT_SLUG`, `CANONICAL_TENANT_SLUG` (both default to `reviewworks`), `DEPLOY_APP_BASE_URL`, `HEDGEDOC_BASE_URL`, `HEDGEDOC_API_TOKEN`
 
-- `_NEXT_PUBLIC_SUPABASE_URL`
-- `_NEXT_PUBLIC_TENANT_SLUG`
-- `_CANONICAL_TENANT_SLUG`
-- `_NEXT_PUBLIC_APP_BASE_URL`
-- optionally override `_SERVICE_NAME` and `_REGION`
+Set `DEPLOY_ENV_FILE` to use a different file.
 
-Create the Secret Manager secret `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Although this key is public by design, keeping deployment configuration centralized avoids accidental substitution mistakes.
+### Deploying
 
-### Deployment script
-
-`app/deploy.sh` is an alternate interactive path:
+From `app/`, after `cf login` and `cf target -o <org> -s <space>`:
 
 ```bash
-cd app
-export NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co
-export NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
-export NEXT_PUBLIC_TENANT_SLUG=reviewworks
-export CANONICAL_TENANT_SLUG=reviewworks
-export NEXT_PUBLIC_APP_BASE_URL=https://review-works.example.gov
-./deploy.sh
+npm run deploy:cloud            # dry run
+npm run deploy:cloud -- --apply # deploy
 ```
 
-It defaults to service `review-works` in `us-central1`. Set `PROJECT_ID`, `SERVICE_NAME`, or `REGION` to override those values. Optional service-role and HedgeDoc values are forwarded when present.
+With `--apply`, `scripts/deploy-cloud.mjs`:
 
-After the first deployment, use the actual Cloud Run URL as `NEXT_PUBLIC_APP_BASE_URL`, update Supabase's redirect allowlist, and redeploy if the provisional URL differed.
+1. builds with the hosted environment, because statically rendered pages embed the public Supabase settings at build time;
+2. runs `cf push reviewworks -f manifest.yml --no-start`;
+3. sets the runtime environment through `cf curl /v3/apps/<guid>/environment_variables` without printing values; and
+4. starts the app.
 
-## Cloud Foundry
-
-`manifest.yml` deploys the prebuilt image `direwolfvm/complex-review:latest` as `reviewworks` with 512 MB of memory and an HTTP health check at `/`.
-
-Supply environment variables through the platform rather than committing them to the manifest. Confirm that the referenced image matches the source revision being released.
+After the first deployment, confirm `NEXT_PUBLIC_APP_BASE_URL` matches the route, update Supabase's redirect allowlist, and redeploy if it differed.
 
 ## HedgeDoc
 
@@ -150,7 +140,7 @@ Treat it as an audited migration artifact, not a general setup command. Review i
 - Supabase allowed origins and callback URLs are current.
 - HedgeDoc frame and note creation work, if enabled.
 - A full workflow including a revision loop succeeds.
-- The container image tag can be traced to the released commit.
+- CI is green on the released commit, and its SBOM artifact is retained.
 
 ## Troubleshooting
 
