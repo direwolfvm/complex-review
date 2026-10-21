@@ -13,6 +13,14 @@ updates:
       # engines and the workflows). Bump them together with the runtime.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # Held until the lint stack supports them: typescript-eslint (via
+      # eslint-config-next) requires typescript <6.1, and eslint-config-next's
+      # bundled import/react/jsx-a11y plugins declare eslint <=9. Remove these
+      # entries when eslint-config-next supports TypeScript 7 and ESLint 10.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 5
   - package-ecosystem: github-actions
     directory: /
