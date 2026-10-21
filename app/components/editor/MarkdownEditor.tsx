@@ -38,8 +38,8 @@ export default function MarkdownEditor({
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       // Code blocks
-      .replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 p-2 rounded my-2 overflow-x-auto"><code>$1</code></pre>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+      .replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 p-2 rounded-sm my-2 overflow-x-auto"><code>$1</code></pre>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded-sm">$1</code>')
       // Lists
       .replace(/^\- (.*$)/gm, '<li class="ml-4">$1</li>')
       .replace(/^\* (.*$)/gm, '<li class="ml-4">$1</li>')
@@ -62,14 +62,14 @@ export default function MarkdownEditor({
           <button
             type="button"
             onClick={() => setShowPreview(false)}
-            className={`px-3 py-1 text-sm rounded ${!showPreview ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`px-3 py-1 text-sm rounded-sm ${!showPreview ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Edit
           </button>
           <button
             type="button"
             onClick={() => setShowPreview(true)}
-            className={`px-3 py-1 text-sm rounded ${showPreview ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`px-3 py-1 text-sm rounded-sm ${showPreview ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Preview
           </button>
@@ -80,7 +80,7 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={() => onChange(value + '\n# ')}
-              className="p-1 hover:bg-gray-200 rounded"
+              className="p-1 hover:bg-gray-200 rounded-sm"
               title="Add heading"
             >
               <span className="text-sm font-bold">H</span>
@@ -88,7 +88,7 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={() => onChange(value + '**bold**')}
-              className="p-1 hover:bg-gray-200 rounded"
+              className="p-1 hover:bg-gray-200 rounded-sm"
               title="Bold"
             >
               <span className="text-sm font-bold">B</span>
@@ -96,7 +96,7 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={() => onChange(value + '*italic*')}
-              className="p-1 hover:bg-gray-200 rounded"
+              className="p-1 hover:bg-gray-200 rounded-sm"
               title="Italic"
             >
               <span className="text-sm italic">I</span>
@@ -104,7 +104,7 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={() => onChange(value + '\n- ')}
-              className="p-1 hover:bg-gray-200 rounded"
+              className="p-1 hover:bg-gray-200 rounded-sm"
               title="Add list item"
             >
               <span className="text-sm">•</span>
@@ -112,7 +112,7 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={() => onChange(value + '\n```\ncode\n```')}
-              className="p-1 hover:bg-gray-200 rounded"
+              className="p-1 hover:bg-gray-200 rounded-sm"
               title="Add code block"
             >
               <span className="text-sm font-mono">&lt;/&gt;</span>
@@ -133,7 +133,7 @@ export default function MarkdownEditor({
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           placeholder={placeholder}
-          className="w-full p-4 min-h-[400px] max-h-[600px] font-mono text-sm resize-y focus:outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+          className="w-full p-4 min-h-[400px] max-h-[600px] font-mono text-sm resize-y focus:outline-hidden disabled:bg-gray-50 disabled:cursor-not-allowed"
         />
       )}
 

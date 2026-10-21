@@ -44,9 +44,8 @@ jobs:
           # Placeholders: the build must not need real credentials.
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
-      # Gate on what ships. Tailwind 3's build-time file watcher still pulls in
-      # flagged dev-only packages (braces, postcss-selector-parser) until the
-      # Tailwind 4 upgrade.
+      # Gate on what ships. eslint-config-next still pulls in a flagged
+      # dev-only package (braces, via fast-glob) that has no fixed release.
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: License check

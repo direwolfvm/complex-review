@@ -141,7 +141,7 @@ export default async function AboutPage() {
               { step: 5, title: 'Approval', desc: 'Approver reviews the analysis and approves or requests revisions.', role: 'Approver' },
             ].map(({ step, title, desc, role }) => (
               <div key={step} className="flex items-start space-x-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+                <div className="shrink-0 w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
                   {step}
                 </div>
                 <div className="flex-1">
