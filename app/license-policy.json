@@ -34,36 +34,6 @@
   ],
   "choices": {},
   "exceptions": {
-    "compute-gcd": {
-      "declared": null,
-      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
-      "reviewed": "2026-10-21"
-    },
-    "compute-lcm": {
-      "declared": null,
-      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
-      "reviewed": "2026-10-21"
-    },
-    "validate.io-function": {
-      "declared": null,
-      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
-      "reviewed": "2026-10-21"
-    },
-    "validate.io-integer": {
-      "declared": null,
-      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
-      "reviewed": "2026-10-21"
-    },
-    "validate.io-integer-array": {
-      "declared": null,
-      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
-      "reviewed": "2026-10-21"
-    },
-    "validate.io-number": {
-      "declared": null,
-      "verified": "MIT (package.json licenses field); pulled in by @rjsf/utils through json-schema-merge-allof",
-      "reviewed": "2026-10-21"
-    },
     "@img/sharp-libvips-linux-x64": {
       "declared": "LGPL-3.0-or-later",
       "verified": "LGPL-3.0-or-later libvips, shipped unmodified as a dynamically loaded prebuilt binary. Optional dependency of next (sharp, image optimization); platform-specific, so only the host's variant is installed",
