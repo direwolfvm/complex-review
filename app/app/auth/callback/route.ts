@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse, type NextRequest } from 'next/server';
-import { NEXT_PATH_COOKIE, hasLoginGovIdentity, safeRedirectPath } from '@/lib/auth/login-gov';
+import { NEXT_PATH_COOKIE, hasLoginGovIdentity, publicOrigin, safeRedirectPath } from '@/lib/auth/login-gov';
 import { getTenantContextForUser, NotEnrolledError } from '@/lib/tenant/server';
 
 // Handles both the email-confirmation link and the Login.gov (Keycloak) PKCE redirect.
 // The Login.gov redirect URL carries no query string, so it matches the exact entry on the
 // shared Supabase project's redirect allow-list; the return path travels in a cookie.
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = publicOrigin(request.url, request.headers);
   const code = searchParams.get('code');
   const next = safeRedirectPath(searchParams.get('next') ?? request.cookies.get(NEXT_PATH_COOKIE)?.value);
 
