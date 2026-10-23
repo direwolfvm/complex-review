@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { publicOrigin } from '@/lib/auth/login-gov';
 import crypto from 'crypto';
 
 function htmlEscape(value: string) {
@@ -10,10 +11,6 @@ function htmlEscape(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function getOrigin(requestUrl: URL): string {
-  return `${requestUrl.protocol}//${requestUrl.host}`;
 }
 
 export async function GET(request: Request) {
@@ -34,7 +31,7 @@ export async function GET(request: Request) {
 
   if (!user) {
     const returnTo = encodeURIComponent(url.pathname + url.search);
-    return NextResponse.redirect(new URL(`/login?redirectTo=${returnTo}`, url.origin));
+    return NextResponse.redirect(new URL(`/login?redirectTo=${returnTo}`, publicOrigin(request.url, request.headers)));
   }
 
   let appName = clientId || 'Unknown App';
@@ -122,9 +119,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const url = new URL(request.url);
   const originHeader = (await headers()).get('origin');
-  const requestOrigin = getOrigin(url);
+  const requestOrigin = publicOrigin(request.url, request.headers);
 
   if (originHeader && originHeader !== requestOrigin) {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });

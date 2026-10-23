@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasLoginGovIdentity, safeRedirectPath } from '@/lib/auth/login-gov';
+import { hasLoginGovIdentity, publicOrigin, safeRedirectPath } from '@/lib/auth/login-gov';
 
 describe('safeRedirectPath', () => {
   it('keeps same-origin paths', () => {
@@ -26,5 +26,26 @@ describe('hasLoginGovIdentity', () => {
     expect(hasLoginGovIdentity({ app_metadata: { provider: 'email', providers: ['email'] } })).toBe(false);
     expect(hasLoginGovIdentity({ app_metadata: null })).toBe(false);
     expect(hasLoginGovIdentity(null)).toBe(false);
+  });
+});
+
+describe('publicOrigin', () => {
+  const internal = 'https://localhost:8080/auth/callback?code=abc';
+  const headers = (h: Record<string, string>) => ({ get: (name: string) => h[name] ?? null });
+
+  it('prefers the configured base URL', () => {
+    expect(publicOrigin(internal, headers({}), 'https://reviewworks.app.cloud.gov/')).toBe('https://reviewworks.app.cloud.gov');
+  });
+
+  it('uses the forwarded host behind the router', () => {
+    expect(publicOrigin(internal, headers({ 'x-forwarded-host': 'reviewworks.app.cloud.gov', 'x-forwarded-proto': 'https' }), '')).toBe('https://reviewworks.app.cloud.gov');
+  });
+
+  it('ignores a malformed forwarded host', () => {
+    expect(publicOrigin(internal, headers({ 'x-forwarded-host': 'evil.example/path' }), '')).toBe('https://localhost:8080');
+  });
+
+  it('falls back to the request origin', () => {
+    expect(publicOrigin('http://localhost:3000/auth/callback', headers({}), '')).toBe('http://localhost:3000');
   });
 });
