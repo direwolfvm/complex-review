@@ -19,7 +19,8 @@ The app assigns the analyst and approver from tenant-scoped role assignments. Th
 Additional user-facing features include:
 
 - Public Home, About, and Developer Resources pages
-- Email/password sign-up, sign-in, confirmation callback, and sign-out
+- Sign in with Login.gov (through the Keycloak broker); a verified .gov or .mil account is enrolled as Applicant on first sign-in, anyone else sees a not-enrolled page
+- Email/password sign-up, sign-in, confirmation callback, and sign-out (kept for demo accounts)
 - A dashboard containing active tasks, recent cases, role badges, and notifications
 - A tenant-filtered case list and a case detail timeline
 - JSON Schema forms rendered with React JSON Schema Form (RJSF)
@@ -177,7 +178,7 @@ See [Operations and deployment](docs/OPERATIONS.md) for configuration, data prep
 ## Current constraints
 
 - Workflow configuration assumes process model ID `1`, decision element IDs `1`–`5`, and role IDs Applicant `1`, Analyst `2`, Approver `3`.
-- New self-registered users still need an active tenant membership and appropriate role assignment before they can use protected application pages or receive work.
+- New email/password users, and Login.gov users without a verified .gov or .mil email, still need an active tenant membership and appropriate role assignment before they can use protected application pages or receive work.
 - Analyst and approver assignment selects the first eligible tenant-scoped assignment when the project does not already store an assignee.
 - HedgeDoc content is edited in HedgeDoc. The database stores note linkage metadata; the internal editor stores Markdown directly in `document.other.markdown_content`. The Step 5 preview currently reads database Markdown and does not fetch the live HedgeDoc note.
 - The dashboard's role-badge lookup is user-scoped but not tenant-filtered; task and case queries remain tenant-scoped. Use RLS and avoid reusing conflicting numeric role IDs across tenants.

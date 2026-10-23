@@ -30,6 +30,16 @@ The current runtime expects a canonical tenant-aware database. Before starting t
 
 Self-sign-up creates an Auth user only. Membership and role provisioning are administrative operations outside the current UI.
 
+### Login.gov sign-in
+
+The "Sign in with Login.gov" button uses the project's Keycloak provider with `kc_idp_hint=login-gov`, so Keycloak sends the user straight to Login.gov. It needs, on the Supabase project:
+
+- the Keycloak provider enabled (on the shared PIC project it already is, through the `portal2-supabase` client);
+- the exact callback `https://<route>/auth/callback` on the redirect allow-list (no query string: the return path travels in a cookie). The list is shared with other tenants, so **append** to it, never replace it;
+- the `login_gov_enroll(p_tenant_slug)` function and `tenant.login_gov_self_enroll = true` for the tenant (helppermitme2 migration `202609060068_login_gov_legacy_enrollment.sql`).
+
+When a Login.gov user has no membership, the app calls `login_gov_enroll` once (in `/auth/callback` and again when a protected page loads). The database enrolls a verified .gov or .mil address as `applicant` with the Applicant role assignment; anyone else stays signed in without a membership and lands on `/not-enrolled`. Email/password sign-in is unchanged for demo accounts. Turning `login_gov_self_enroll` off stops new enrollments without a deploy.
+
 ## Local verification
 
 From `app/`:

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { getRoleName } from '@/lib/workflow/engine';
-import { getTenantContextForUser } from '@/lib/tenant/server';
+import { requireTenantContext } from '@/lib/tenant/server';
 import type { ProcessInstance, Project, CaseEventWorkflowMeta, ProcessInstanceWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
 
 // Status badge component
@@ -28,7 +28,7 @@ export default async function DashboardPage() {
   if (!user) {
     return null;
   }
-  const { tenantId } = await getTenantContextForUser(user.id);
+  const { tenantId } = await requireTenantContext(user.id);
 
   // Get user's role assignments
   const { data: assignments } = await supabase

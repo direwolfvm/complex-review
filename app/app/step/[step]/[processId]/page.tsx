@@ -8,7 +8,7 @@ import Step5Approval from '@/components/steps/Step5Approval';
 import { canUserAccessStep, getRoleName } from '@/lib/workflow/engine';
 import { findDecisionElementForStep } from '@/lib/workflow/decision-element';
 import type { Project, ProcessInstanceWorkflowMeta, DecisionElement } from '@/lib/types/database';
-import { getTenantContextForUser } from '@/lib/tenant/server';
+import { requireTenantContext } from '@/lib/tenant/server';
 
 export default async function StepPage({
   params,
@@ -28,7 +28,7 @@ export default async function StepPage({
   if (!user) {
     redirect('/login');
   }
-  const { tenantId } = await getTenantContextForUser(user.id);
+  const { tenantId } = await requireTenantContext(user.id);
 
   // Get process instance with project
   const { data: processInstance, error } = await supabase

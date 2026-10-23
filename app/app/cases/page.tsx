@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Project, ProcessInstanceWorkflowMeta, ProjectWorkflowMeta } from '@/lib/types/database';
-import { getTenantContextForUser } from '@/lib/tenant/server';
+import { requireTenantContext } from '@/lib/tenant/server';
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -27,7 +27,7 @@ export default async function CasesPage() {
   if (!user) {
     redirect('/login');
   }
-  const { tenantId } = await getTenantContextForUser(user.id);
+  const { tenantId } = await requireTenantContext(user.id);
 
   // Get all cases
   const { data: allCases } = await supabase
