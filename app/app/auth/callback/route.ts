@@ -17,22 +17,22 @@ export async function GET(request: NextRequest) {
     return response;
   };
 
-  if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && hasLoginGovIdentity(user)) {
-        // Enrolls a first-time Login.gov user (login_gov_enroll) or finds their membership.
-        try {
-          await getTenantContextForUser(user.id);
-        } catch (err) {
-          if (err instanceof NotEnrolledError) return finish('/not-enrolled');
-          throw err;
-        }
+  // A missing code is left to Supabase to reject, so the outcome rests on the exchange
+  // result rather than on a request parameter.
+  const supabase = await createClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code ?? '');
+  if (!error) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && hasLoginGovIdentity(user)) {
+      // Enrolls a first-time Login.gov user (login_gov_enroll) or finds their membership.
+      try {
+        await getTenantContextForUser(user.id);
+      } catch (err) {
+        if (err instanceof NotEnrolledError) return finish('/not-enrolled');
+        throw err;
       }
-      return finish(next);
     }
+    return finish(next);
   }
 
   // Return the user to the login page with the reason
